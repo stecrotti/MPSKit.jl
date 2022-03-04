@@ -10,13 +10,13 @@
 
     MPOHamiltonian(data);
 end</code></pre><h2 id="Finite-MPS-quenching-1"><a class="docs-heading-anchor" href="#Finite-MPS-quenching-1">Finite MPS quenching</a><a class="docs-heading-anchor-permalink" href="#Finite-MPS-quenching-1" title="Permalink"></a></h2><p>Construct an initial finite system</p><pre><code class="language-julia">len = 20;
-init = FiniteMPS(rand,ComplexF64,len,ℂ^2,ℂ^10);</code></pre><p>Find the pre-quench groundstate</p><pre><code class="language-julia">(ψ₀,_) = find_groundstate(init,ising_ham(0.5),Dmrg());</code></pre><p>We can define a help function that measures the loschmith echo</p><pre><code class="language-julia">echo(ψ₀::FiniteMPS,ψₜ::FiniteMPS) = -2*log(abs(dot(ψ₀,ψₜ)))/length(ψ₀)
+init = FiniteMPS(rand,ComplexF64,len,ℂ^2,ℂ^10);</code></pre><p>Find the pre-quench groundstate</p><pre><code class="language-julia">(ψ₀,_) = find_groundstate(init,ising_ham(0.5),DMRG());</code></pre><p>We can define a help function that measures the loschmith echo</p><pre><code class="language-julia">echo(ψ₀::FiniteMPS,ψₜ::FiniteMPS) = -2*log(abs(dot(ψ₀,ψₜ)))/length(ψ₀)
 @assert isapprox(echo(ψ₀,ψ₀),0,atol=1e-10);</code></pre><p>we will initially use a 2site tdvp scheme to increase the bond dimension while time evolving, and later on switch to a faster one-site scheme. A single timestep can be done using</p><pre><code class="language-julia">ψₜ = deepcopy(ψ₀);
 dt = 0.01;
 
-(ψₜ,envs) = timestep(ψₜ,ising_ham(2),dt,Tdvp2(trscheme=truncdim(20)));</code></pre><p>&quot;envs&quot; is a kind of cache object that keeps track of all environments in ψ. It is often advantageous to re-use the environment, so that mpskit doesn&#39;t need to recalculate everything.</p><p>Putting it all together, we get</p><pre><code class="language-julia">function finite_sim(len; dt = 0.05, finaltime = 5.0)
+(ψₜ,envs) = timestep(ψₜ,ising_ham(2),dt,TDVP2(trscheme=truncdim(20)));</code></pre><p>&quot;envs&quot; is a kind of cache object that keeps track of all environments in ψ. It is often advantageous to re-use the environment, so that mpskit doesn&#39;t need to recalculate everything.</p><p>Putting it all together, we get</p><pre><code class="language-julia">function finite_sim(len; dt = 0.05, finaltime = 5.0)
     ψ₀ = FiniteMPS(rand,ComplexF64,len,ℂ^2,ℂ^10);
-    (ψ₀,_) = find_groundstate(ψ₀,ising_ham(0.5),Dmrg());
+    (ψ₀,_) = find_groundstate(ψ₀,ising_ham(0.5),DMRG());
 
     post_quench_ham = ising_ham(2);
     ψₜ = deepcopy(ψ₀);
@@ -26,7 +26,7 @@ dt = 0.01;
     times = collect(0:dt:finaltime);
 
     @showprogress for t = times[2:end]
-        alg = t &gt; 3*dt ? Tdvp() : Tdvp2(trscheme = truncdim(50))
+        alg = t &gt; 3*dt ? TDVP() : TDVP2(trscheme = truncdim(50))
         (ψₜ,envs) = timestep(ψₜ,post_quench_ham,dt,alg,envs);
         push!(echos,echo(ψₜ,ψ₀))
     end
@@ -56,4 +56,4 @@ end</code></pre><p><img src="../finite_timeev.png" alt/></p><h2 id="Infinite-MPS
     end
 
     return (times,echos)
-end</code></pre><p><img src="../infinite_timeev.png" alt/></p></article><nav class="docs-footer"><a class="docs-footer-prevpage" href="../xxz_groundstate/">« Analyzing the xxz model</a><a class="docs-footer-nextpage" href="../haldane/">The haldane gap »</a></nav></div><div class="modal" id="documenter-settings"><div class="modal-background"></div><div class="modal-card"><header class="modal-card-head"><p class="modal-card-title">Settings</p><button class="delete"></button></header><section class="modal-card-body"><p><label class="label">Theme</label><div class="select"><select id="documenter-themepicker"><option value="documenter-light">documenter-light</option><option value="documenter-dark">documenter-dark</option></select></div></p><hr/><p>This document was generated with <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> on <span class="colophon-date" title="Thursday 3 March 2022 22:50">Thursday 3 March 2022</span>. Using Julia version 1.5.4.</p></section><footer class="modal-card-foot"></footer></div></div></div></body></html>
+end</code></pre><p><img src="../infinite_timeev.png" alt/></p></article><nav class="docs-footer"><a class="docs-footer-prevpage" href="../xxz_groundstate/">« Analyzing the xxz model</a><a class="docs-footer-nextpage" href="../haldane/">The haldane gap »</a></nav></div><div class="modal" id="documenter-settings"><div class="modal-background"></div><div class="modal-card"><header class="modal-card-head"><p class="modal-card-title">Settings</p><button class="delete"></button></header><section class="modal-card-body"><p><label class="label">Theme</label><div class="select"><select id="documenter-themepicker"><option value="documenter-light">documenter-light</option><option value="documenter-dark">documenter-dark</option></select></div></p><hr/><p>This document was generated with <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> on <span class="colophon-date" title="Friday 4 March 2022 12:44">Friday 4 March 2022</span>. Using Julia version 1.5.4.</p></section><footer class="modal-card-foot"></footer></div></div></div></body></html>
