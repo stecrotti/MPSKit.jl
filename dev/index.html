@@ -8,55 +8,55 @@ D = 5 # virtual dimension
 L = 10 # number of sites
 
 mps = FiniteMPS(L, ComplexSpace(d), ComplexSpace(D)) # random MPS with maximal bond dimension D</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi">10-site FiniteMPS:
-┌ CL[11]: TensorMap(ProductSpace(ℂ^1) ← ProductSpace(ℂ^1))
-├── AL[10]: TensorMap((ℂ^2 ⊗ ℂ^2) ← ProductSpace(ℂ^1))
-├── AL[9]: TensorMap((ℂ^4 ⊗ ℂ^2) ← ProductSpace(ℂ^2))
-├── AL[8]: TensorMap((ℂ^5 ⊗ ℂ^2) ← ProductSpace(ℂ^4))
-├── AL[7]: TensorMap((ℂ^5 ⊗ ℂ^2) ← ProductSpace(ℂ^5))
-├── AL[6]: TensorMap((ℂ^5 ⊗ ℂ^2) ← ProductSpace(ℂ^5))
-├── AL[5]: TensorMap((ℂ^5 ⊗ ℂ^2) ← ProductSpace(ℂ^5))
-├── AL[4]: TensorMap((ℂ^5 ⊗ ℂ^2) ← ProductSpace(ℂ^5))
-├── AL[3]: TensorMap((ℂ^4 ⊗ ℂ^2) ← ProductSpace(ℂ^5))
-├── AL[2]: TensorMap((ℂ^2 ⊗ ℂ^2) ← ProductSpace(ℂ^4))
-└── AL[1]: TensorMap((ℂ^1 ⊗ ℂ^2) ← ProductSpace(ℂ^2))
+┌ CL[11]: TensorMap(ℂ^1 ← ℂ^1)
+├── AL[10]: TensorMap((ℂ^2 ⊗ ℂ^2) ← ℂ^1)
+├── AL[9]: TensorMap((ℂ^4 ⊗ ℂ^2) ← ℂ^2)
+├── AL[8]: TensorMap((ℂ^5 ⊗ ℂ^2) ← ℂ^4)
+├── AL[7]: TensorMap((ℂ^5 ⊗ ℂ^2) ← ℂ^5)
+├── AL[6]: TensorMap((ℂ^5 ⊗ ℂ^2) ← ℂ^5)
+├── AL[5]: TensorMap((ℂ^5 ⊗ ℂ^2) ← ℂ^5)
+├── AL[4]: TensorMap((ℂ^5 ⊗ ℂ^2) ← ℂ^5)
+├── AL[3]: TensorMap((ℂ^4 ⊗ ℂ^2) ← ℂ^5)
+├── AL[2]: TensorMap((ℂ^2 ⊗ ℂ^2) ← ℂ^4)
+└── AL[1]: TensorMap((ℂ^1 ⊗ ℂ^2) ← ℂ^2)
 </code></pre><p>The <code>FiniteMPS</code> object then handles the gauging of the MPS, which is necessary for many of the algorithms. This is done automatically when needed, and the user can access the gauged tensors by getting and setting the <code>AL</code>, <code>AR</code>, <code>CR</code>/<code>CL</code> and <code>AC</code> fields, which each represent a vector of these tensors.</p><pre><code class="language-julia hljs">al = mps.AL[3] # left gauged tensor of the third site
 @tensor E[a; b] := al[c, d, b] * conj(al[c, d, a])
 @show isapprox(E, id(left_virtualspace(mps, 3)))</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi">true</code></pre><pre><code class="language-julia hljs">ar = mps.AR[3] # right gauged tensor of the third site
 @tensor E[a; b] := ar[a, d, c] * conj(ar[b, d, c])
 @show isapprox(E, id(right_virtualspace(mps, 2)))</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi">true</code></pre><p>As the mps will be kept in a gauged form, updating a tensor will also update the gauged tensors. For example, we can set the tensor of the third site to the identity, and the gauged tensors will be updated accordingly.</p><pre><code class="language-julia hljs">mps.CR[3] = id(domain(mps.CR[3]))
-println(mps)</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi">┌── AR[10]: TensorMap((ℂ^2 ⊗ ℂ^2) ← ProductSpace(ℂ^1))
-├── AR[9]: TensorMap((ℂ^4 ⊗ ℂ^2) ← ProductSpace(ℂ^2))
-├── AR[8]: TensorMap((ℂ^5 ⊗ ℂ^2) ← ProductSpace(ℂ^4))
-├── AR[7]: TensorMap((ℂ^5 ⊗ ℂ^2) ← ProductSpace(ℂ^5))
-├── AR[6]: TensorMap((ℂ^5 ⊗ ℂ^2) ← ProductSpace(ℂ^5))
-├── AR[5]: TensorMap((ℂ^5 ⊗ ℂ^2) ← ProductSpace(ℂ^5))
-├── AR[4]: TensorMap((ℂ^5 ⊗ ℂ^2) ← ProductSpace(ℂ^5))
-│ CL[4]: TensorMap(ProductSpace(ℂ^5) ← ProductSpace(ℂ^5))
-├── AL[3]: TensorMap((ℂ^4 ⊗ ℂ^2) ← ProductSpace(ℂ^5))
-├── AL[2]: TensorMap((ℂ^2 ⊗ ℂ^2) ← ProductSpace(ℂ^4))
-└── AL[1]: TensorMap((ℂ^1 ⊗ ℂ^2) ← ProductSpace(ℂ^2))</code></pre><p>These objects can then be used to compute observables and expectation values. For example, the expectation value of the identity operator at the third site, which is equal to the norm of the MPS, can be computed as:</p><pre><code class="language-julia hljs">N1 = LinearAlgebra.norm(mps)
+println(mps)</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi">┌── AR[10]: TensorMap((ℂ^2 ⊗ ℂ^2) ← ℂ^1)
+├── AR[9]: TensorMap((ℂ^4 ⊗ ℂ^2) ← ℂ^2)
+├── AR[8]: TensorMap((ℂ^5 ⊗ ℂ^2) ← ℂ^4)
+├── AR[7]: TensorMap((ℂ^5 ⊗ ℂ^2) ← ℂ^5)
+├── AR[6]: TensorMap((ℂ^5 ⊗ ℂ^2) ← ℂ^5)
+├── AR[5]: TensorMap((ℂ^5 ⊗ ℂ^2) ← ℂ^5)
+├── AR[4]: TensorMap((ℂ^5 ⊗ ℂ^2) ← ℂ^5)
+│ CL[4]: TensorMap(ℂ^5 ← ℂ^5)
+├── AL[3]: TensorMap((ℂ^4 ⊗ ℂ^2) ← ℂ^5)
+├── AL[2]: TensorMap((ℂ^2 ⊗ ℂ^2) ← ℂ^4)
+└── AL[1]: TensorMap((ℂ^1 ⊗ ℂ^2) ← ℂ^2)</code></pre><p>These objects can then be used to compute observables and expectation values. For example, the expectation value of the identity operator at the third site, which is equal to the norm of the MPS, can be computed as:</p><pre><code class="language-julia hljs">N1 = LinearAlgebra.norm(mps)
 N2 = expectation_value(mps, id(physicalspace(mps, 3)), 3)
 println(&quot;‖mps‖ = $N1&quot;)
-println(&quot;&lt;mps|𝕀₃|mps&gt; = $N2&quot;)</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi">‖mps‖ = 2.2360679774997894
-&lt;mps|𝕀₃|mps&gt; = 4.999999999999999 - 4.7341134247254045e-18im</code></pre><p>Finally, the MPS can be optimized in order to determine groundstates of given Hamiltonians. Using the pre-defined models in <code>MPSKitModels</code>, we can construct the groundstate for the transverse field Ising model:</p><pre><code class="language-julia hljs">H = transverse_field_ising(; J=1.0, g=0.5)
+println(&quot;&lt;mps|𝕀₃|mps&gt; = $N2&quot;)</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi">‖mps‖ = 2.23606797749979
+&lt;mps|𝕀₃|mps&gt; = 5.000000000000001 - 1.477003094212514e-18im</code></pre><p>Finally, the MPS can be optimized in order to determine groundstates of given Hamiltonians. Using the pre-defined models in <code>MPSKitModels</code>, we can construct the groundstate for the transverse field Ising model:</p><pre><code class="language-julia hljs">H = transverse_field_ising(; J=1.0, g=0.5)
 find_groundstate!(mps, H, DMRG(; maxiter=10))
 E0 = expectation_value(mps, H)
-println(&quot;&lt;mps|H|mps&gt; = $(sum(real(E0)) / length(mps))&quot;)</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi">[ Info: Iteraton 0 error 0.14770113474746083
-[ Info: Iteraton 1 error 0.001136642989441339
-[ Info: Iteraton 2 error 5.55937632486137e-5
-[ Info: Iteraton 3 error 4.478159541196511e-5
-[ Info: Iteraton 4 error 3.517608621034859e-5
-[ Info: Iteraton 5 error 2.806600545092825e-5
-[ Info: Iteraton 6 error 2.4297678843190697e-5
-[ Info: Iteraton 7 error 2.590568506323016e-5
-[ Info: Iteraton 8 error 2.955274846423873e-5
-[ Info: Iteraton 9 error 3.295682902076603e-5
-&lt;mps|H|mps&gt; = -0.976550348308581</code></pre><h3 id="Infinite-Matrix-Product-States"><a class="docs-heading-anchor" href="#Infinite-Matrix-Product-States">Infinite Matrix Product States</a><a id="Infinite-Matrix-Product-States-1"></a><a class="docs-heading-anchor-permalink" href="#Infinite-Matrix-Product-States" title="Permalink"></a></h3><p>Similarly, an infinite MPS can be constructed by specifying the tensors for the unit cell, characterised by the spaces (dimensions) thereof.</p><pre><code class="language-julia hljs">d = 2 # physical dimension
+println(&quot;&lt;mps|H|mps&gt; = $(sum(real(E0)) / length(mps))&quot;)</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi">[ Info: Iteraton 0 error 0.18012885458593988
+[ Info: Iteraton 1 error 0.0012034464577770226
+[ Info: Iteraton 2 error 8.79051452985986e-5
+[ Info: Iteraton 3 error 8.172233832828847e-5
+[ Info: Iteraton 4 error 6.208648870375212e-5
+[ Info: Iteraton 5 error 3.949030650391497e-5
+[ Info: Iteraton 6 error 2.272005363525485e-5
+[ Info: Iteraton 7 error 1.244701657147987e-5
+[ Info: Iteraton 8 error 6.663528359927179e-6
+[ Info: Iteraton 9 error 3.528430315362029e-6
+&lt;mps|H|mps&gt; = -0.9765503487688246</code></pre><h3 id="Infinite-Matrix-Product-States"><a class="docs-heading-anchor" href="#Infinite-Matrix-Product-States">Infinite Matrix Product States</a><a id="Infinite-Matrix-Product-States-1"></a><a class="docs-heading-anchor-permalink" href="#Infinite-Matrix-Product-States" title="Permalink"></a></h3><p>Similarly, an infinite MPS can be constructed by specifying the tensors for the unit cell, characterised by the spaces (dimensions) thereof.</p><pre><code class="language-julia hljs">d = 2 # physical dimension
 D = 5 # virtual dimension
 mps = InfiniteMPS(d, D) # random MPS</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi">single site InfiniteMPS:
 │   ⋮
-│ CR[1]: TensorMap(ProductSpace(ℂ^5) ← ProductSpace(ℂ^5))
-├── AL[1]: TensorMap((ℂ^5 ⊗ ℂ^2) ← ProductSpace(ℂ^5))
+│ CR[1]: TensorMap(ℂ^5 ← ℂ^5)
+├── AL[1]: TensorMap((ℂ^5 ⊗ ℂ^2) ← ℂ^5)
 │   ⋮
 </code></pre><p>The <code>InfiniteMPS</code> object then handles the gauging of the MPS, which is necessary for many of the algorithms. This is done automatically upon creation of the object, and the user can access the gauged tensors by getting and setting the <code>AL</code>, <code>AR</code>, <code>CR</code>/<code>CL</code> and <code>AC</code> fields, which each represent a (periodic) vector of these tensors.</p><pre><code class="language-julia hljs">al = mps.AL[1] # left gauged tensor of the third site
 @tensor E[a; b] := al[c, d, b] * conj(al[c, d, a])
@@ -65,23 +65,23 @@ mps = InfiniteMPS(d, D) # random MPS</code></pre><pre class="documenter-example-
 @show isapprox(E, id(right_virtualspace(mps, 2)))</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi">true</code></pre><p>As regauging the MPS is not possible without recomputing all the tensors, setting a single tensor is not supported. Instead, the user should construct a new mps object with the desired tensor, which will then be gauged upon construction.</p><pre><code class="language-julia hljs">als = 3 .* mps.AL
 mps = InfiniteMPS(als)</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi">single site InfiniteMPS:
 │   ⋮
-│ CR[1]: TensorMap(ProductSpace(ℂ^5) ← ProductSpace(ℂ^5))
-├── AL[1]: TensorMap((ℂ^5 ⊗ ℂ^2) ← ProductSpace(ℂ^5))
+│ CR[1]: TensorMap(ℂ^5 ← ℂ^5)
+├── AL[1]: TensorMap((ℂ^5 ⊗ ℂ^2) ← ℂ^5)
 │   ⋮
 </code></pre><p>These objects can then be used to compute observables and expectation values. For example, the norm of the MPS, which is equal to the expectation value of the identity operator can be computed by:</p><pre><code class="language-julia hljs">N1 = norm(mps)
 N2 = expectation_value(mps, id(physicalspace(mps, 1)), 1)
 println(&quot;‖mps‖ = $N1&quot;)
-println(&quot;&lt;mps|𝕀₁|mps&gt; = $N2&quot;)</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi">‖mps‖ = 0.9999999999999997
-&lt;mps|𝕀₁|mps&gt; = 0.9999999999999996 + 3.1012966337244943e-19im</code></pre><div class="admonition is-info"><header class="admonition-header">Normalization of infinite MPS</header><div class="admonition-body"><p>Because infinite MPS cannot sensibly be normalized to anything but <span>$1$</span>, the <code>norm</code> of an infinite MPS is always set to be <span>$1$</span> at construction. If this were not the case, any observable computed from the MPS would either blow up to infinity or vanish to zero.</p></div></div><p>Finally, the MPS can be optimized in order to determine groundstates of given Hamiltonians. Using the pre-defined models in <code>MPSKitModels</code>, we can construct the groundstate for the transverse field Ising model:</p><pre><code class="language-julia hljs">H = transverse_field_ising(; J=1.0, g=0.5)
+println(&quot;&lt;mps|𝕀₁|mps&gt; = $N2&quot;)</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi">‖mps‖ = 1.0000000000000002
+&lt;mps|𝕀₁|mps&gt; = 1.0000000000000002 - 6.094510950816682e-20im</code></pre><div class="admonition is-info"><header class="admonition-header">Normalization of infinite MPS</header><div class="admonition-body"><p>Because infinite MPS cannot sensibly be normalized to anything but <span>$1$</span>, the <code>norm</code> of an infinite MPS is always set to be <span>$1$</span> at construction. If this were not the case, any observable computed from the MPS would either blow up to infinity or vanish to zero.</p></div></div><p>Finally, the MPS can be optimized in order to determine groundstates of given Hamiltonians. Using the pre-defined models in <code>MPSKitModels</code>, we can construct the groundstate for the transverse field Ising model:</p><pre><code class="language-julia hljs">H = transverse_field_ising(; J=1.0, g=0.5)
 mps, = find_groundstate(mps, H, VUMPS(; maxiter=10))
 E0 = expectation_value(mps, H)
-println(&quot;&lt;mps|H|mps&gt; = $(sum(real(E0)) / length(mps))&quot;)</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi">[ Info: vumps @iteration 1 galerkin = 0.06924336584501131
-[ Info: vumps @iteration 2 galerkin = 1.8208510211460438e-5
-[ Info: vumps @iteration 3 galerkin = 1.5606849917274745e-7
-[ Info: vumps @iteration 4 galerkin = 1.481879865175864e-8
-[ Info: vumps @iteration 5 galerkin = 1.6225077262132272e-9
-[ Info: vumps @iteration 6 galerkin = 1.7380744706985243e-10
-[ Info: vumps @iteration 7 galerkin = 1.8670271022085968e-11
-[ Info: vumps @iteration 8 galerkin = 2.0033986114178185e-12
-[ Info: vumps @iteration 9 galerkin = 2.1793875196257583e-13
-&lt;mps|H|mps&gt; = -1.0635444099732512</code></pre><h3 id="Additional-Resources"><a class="docs-heading-anchor" href="#Additional-Resources">Additional Resources</a><a id="Additional-Resources-1"></a><a class="docs-heading-anchor-permalink" href="#Additional-Resources" title="Permalink"></a></h3><p>For more detailed information on the functionality and capabilities of MPSKit, refer to the Manual section, or have a look at the <a href="examples/#Examples">Examples</a> page.</p><p>Keep in mind that the documentation is still a work in progress, and that some features may not be fully documented yet. If you encounter any issues or have questions, please check the library&#39;s <a href="https://github.com/maartenvd/MPSKit.jl/issues">issue tracker</a> on the GitHub repository and open a new issue.</p></article><nav class="docs-footer"><a class="docs-footer-nextpage" href="man/intro/">Prerequisites »</a><div class="flexbox-break"></div><p class="footer-message">Powered by <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> and the <a href="https://julialang.org/">Julia Programming Language</a>.</p></nav></div><div class="modal" id="documenter-settings"><div class="modal-background"></div><div class="modal-card"><header class="modal-card-head"><p class="modal-card-title">Settings</p><button class="delete"></button></header><section class="modal-card-body"><p><label class="label">Theme</label><div class="select"><select id="documenter-themepicker"><option value="documenter-light">documenter-light</option><option value="documenter-dark">documenter-dark</option></select></div></p><hr/><p>This document was generated with <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> version 0.27.25 on <span class="colophon-date" title="Saturday 9 September 2023 12:22">Saturday 9 September 2023</span>. Using Julia version 1.9.3.</p></section><footer class="modal-card-foot"></footer></div></div></div></body></html>
+println(&quot;&lt;mps|H|mps&gt; = $(sum(real(E0)) / length(mps))&quot;)</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi">[ Info: vumps @iteration 1 galerkin = 0.13531098412907785
+[ Info: vumps @iteration 2 galerkin = 0.00012983473531464956
+[ Info: vumps @iteration 3 galerkin = 2.0232803826943582e-7
+[ Info: vumps @iteration 4 galerkin = 2.4700301145097663e-8
+[ Info: vumps @iteration 5 galerkin = 2.766418383567183e-9
+[ Info: vumps @iteration 6 galerkin = 2.985690191868389e-10
+[ Info: vumps @iteration 7 galerkin = 3.206824323461289e-11
+[ Info: vumps @iteration 8 galerkin = 3.439895573002997e-12
+[ Info: vumps @iteration 9 galerkin = 3.7262938891390496e-13
+&lt;mps|H|mps&gt; = -1.0635444099732512</code></pre><h3 id="Additional-Resources"><a class="docs-heading-anchor" href="#Additional-Resources">Additional Resources</a><a id="Additional-Resources-1"></a><a class="docs-heading-anchor-permalink" href="#Additional-Resources" title="Permalink"></a></h3><p>For more detailed information on the functionality and capabilities of MPSKit, refer to the Manual section, or have a look at the <a href="examples/#Examples">Examples</a> page.</p><p>Keep in mind that the documentation is still a work in progress, and that some features may not be fully documented yet. If you encounter any issues or have questions, please check the library&#39;s <a href="https://github.com/maartenvd/MPSKit.jl/issues">issue tracker</a> on the GitHub repository and open a new issue.</p></article><nav class="docs-footer"><a class="docs-footer-nextpage" href="man/intro/">Prerequisites »</a><div class="flexbox-break"></div><p class="footer-message">Powered by <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> and the <a href="https://julialang.org/">Julia Programming Language</a>.</p></nav></div><div class="modal" id="documenter-settings"><div class="modal-background"></div><div class="modal-card"><header class="modal-card-head"><p class="modal-card-title">Settings</p><button class="delete"></button></header><section class="modal-card-body"><p><label class="label">Theme</label><div class="select"><select id="documenter-themepicker"><option value="documenter-light">documenter-light</option><option value="documenter-dark">documenter-dark</option></select></div></p><hr/><p>This document was generated with <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> version 0.27.25 on <span class="colophon-date" title="Wednesday 4 October 2023 10:29">Wednesday 4 October 2023</span>. Using Julia version 1.9.3.</p></section><footer class="modal-card-foot"></footer></div></div></div></body></html>
