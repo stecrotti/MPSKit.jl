@@ -23,9 +23,9 @@ end
 
 Base.:*(h::Union{MPO_∂∂C,MPO_∂∂AC,MPO_∂∂AC2}, v) = h(v);
 
-(h::MPO_∂∂C)(x) = ∂C(x, h.leftenv, h.rightenv);
-(h::MPO_∂∂AC)(x) = ∂AC(x, h.o, h.leftenv, h.rightenv);
-(h::MPO_∂∂AC2)(x) = ∂AC2(x, h.o1, h.o2, h.leftenv, h.rightenv);
+(h::MPO_∂∂C)(x) = ∂C(x, h.leftenv, h.rightenv)
+(h::MPO_∂∂AC)(x) = ∂AC(x, h.o, h.leftenv, h.rightenv)
+(h::MPO_∂∂AC2)(x) = ∂AC2(x, h.o1, h.o2, h.leftenv, h.rightenv)
 
 # draft operator constructors
 function ∂∂C(pos::Int, mps, opp::Union{MPOHamiltonian,SparseMPO,DenseMPO}, cache)
@@ -99,21 +99,38 @@ function ∂AC(x::MPSTensor, ham::SparseMPOSlice, leftenv, rightenv)::typeof(x)
         end
     end
 
+function ∂AC!(y::T, x::T, O::MPOTensor{S}, leftenv::MPSTensor{S}, rightenv::MPSTensor{S})where {S,T<:MPSTensor{S}}
+    @plansor begin 
+        y[-1 -2; -3] = leftenv[-1 2; 1] * x[1 3; 4] * O[2 -2; 3 5] * rightenv[4 5; -3]
+    end
     return y
 end
 
 function ∂AC(
-    x::MPSTensor{S}, opp::MPOTensor{S}, leftenv::MPSTensor{S}, rightenv::MPSTensor{S}
-)::typeof(x) where {S}
-    @plansor y[-1 -2; -3] :=
-        leftenv[-1 5; 4] * x[4 2; 1] * opp[5 -2; 2 3] * rightenv[1 3; -3]
+    x::MPSTensor{S},
+    O::MPOTensor{S},
+    leftenv::MPSTensor{S},
+    rightenv::MPSTensor{S},
+) where {S}
+    @plansor begin
+        y[-1 -2; -3] := leftenv[-1 2; 1] * x[1 3; 4] * O[2 -2; 3 5] * rightenv[4 5; -3]
+    end
+    return y
 end
 function ∂AC(
-    x::MPSTensor{S}, opp::Number, leftenv::MPSTensor{S}, rightenv::MPSTensor{S}
-)::typeof(x) where {S}
-    @plansor y[-1 -2; -3] :=
-        opp * (leftenv[-1 5; 4] * x[4 6; 1] * τ[6 5; 7 -2] * rightenv[1 7; -3])
+    x::MPSTensor{S},
+    O::BlockTensorMap{S,2,2},
+    leftenv::BlockTensorMap{S,2,1},
+    rightenv::BlockTensorMap{S,2,1},
+) where {S}
+    x′ = convert(BlockTensorMap, x) # TODO: this should not be necessary?
+    @plansor begin
+        y[-1 -2; -3] := leftenv[-1 2; 1] * x′[1 3; 4] * O[2 -2; 3 5] * rightenv[4 5; -3]
+    end
+    return x isa BlockTensorMap ? y : y[1]
 end
+
+
 
 # mpo multiline
 function ∂AC(x::RecursiveVec, opp, leftenv, rightenv)
@@ -202,10 +219,26 @@ function ∂C(x::MPSBondTensor, leftenv::AbstractVector, rightenv::AbstractVecto
 
     return y
 end
-
-function ∂C(x::MPSBondTensor, leftenv::MPSTensor, rightenv::MPSTensor)
-    @plansor toret[-1; -2] := leftenv[-1 3; 1] * x[1; 2] * rightenv[2 3; -2]
+function ∂C(x::MPSBondTensor{S}, leftenv::MPSTensor{S}, rightenv::MPSTensor{S}) where {S}
+    @plansor begin
+        y[-1; -2] := leftenv[-1 3; 1] * x[1; 2] * rightenv[2 3; -2]
+    end
+    return y
 end
+function ∂C(
+    x::MPSBondTensor{S}, leftenv::BlockTensorMap{S,2,1}, rightenv::BlockTensorMap{S,2,1}
+) where {S}
+    x′ = convert(BlockTensorMap, x)
+    @plansor begin
+        y[-1; -2] := leftenv[-1 3; 1] * x′[1; 2] * rightenv[2 3; -2]
+    end
+    return x isa BlockTensorMap ? y : y[1]
+end
+
+
+# function ∂C(x::MPSBondTensor, leftenv::MPSTensor, rightenv::MPSTensor)
+#     @plansor toret[-1; -2] := leftenv[-1 3; 1] * x[1; 2] * rightenv[2 3; -2]
+# end
 
 function ∂C(x::MPSBondTensor, leftenv::MPSBondTensor, rightenv::MPSBondTensor)
     @plansor toret[-1; -2] := leftenv[-1; 1] * x[1; 2] * rightenv[2; -2]

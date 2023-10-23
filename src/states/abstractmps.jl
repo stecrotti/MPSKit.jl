@@ -2,7 +2,6 @@
 Tensor types
 ===========================================================================================#
 
-const MPOTensor{S} = AbstractTensorMap{S,2,2} where {S}
 const MPSBondTensor{S} = AbstractTensorMap{S,1,1} where {S}
 const GenericMPSTensor{S,N} = AbstractTensorMap{S,N,1} where {S,N} #some functions are also defined for "general mps tensors" (used in peps code)
 const MPSTensor{S} = GenericMPSTensor{S,2} where {S} #the usual mps tensors on which we work
@@ -71,7 +70,6 @@ MPS types
 ===========================================================================================#
 
 abstract type AbstractMPS end
-
 Base.eltype(Ψ::AbstractMPS) = eltype(typeof(Ψ))
 VectorInterface.scalartype(T::Type{<:AbstractMPS}) = scalartype(site_type(T))
 
@@ -103,6 +101,7 @@ Return the left virtual space of the bond tensor at site `i`. This is equivalent
 left virtual space of the left-gauged site tensor at site `i + 1`.
 """
 function left_virtualspace end
+left_virtualspace(A::MPSTensor) = space(A, 1)
 
 """
     right_virtualspace(Ψ::AbstractMPS, i::Int)
@@ -111,6 +110,7 @@ Return the right virtual space of the bond tensor at site `i`. This is equivalen
 right virtual space of the right-gauged site tensor at site `i`.
 """
 function right_virtualspace end
+right_virtualspace(A::GenericMPSTensor) = space(A, numind(A))
 
 """
     physicalspace(Ψ::AbstractMPS, i::Int)

@@ -193,9 +193,7 @@ You can impose periodic boundary conditions on an mpo-hamiltonian (for a given s
 That creates a new mpo-hamiltonian with larger bond dimension
 The interaction never wraps around multiple times
 """
-function periodic_boundary_conditions(
-    ham::MPOHamiltonian{S,T,E}, len=ham.period
-) where {S,T,E}
+function periodic_boundary_conditions(ham::MPOHamiltonian, len=ham.period)
     sanitycheck(ham) || throw(ArgumentError("invalid ham"))
     mod(len, ham.period) == 0 ||
         throw(ArgumentError("$(len) is not a multiple of unitcell"))
@@ -207,7 +205,7 @@ function periodic_boundary_conditions(
                     ham.domspaces[loc, :], ham.domspaces[len + 1, :], ham.domspaces[loc, :]
                 ),
             ) do (v1, v2, v3)
-                isomorphism(storagetype(T), fuse(v1 * v2' * v3), v1 * v2' * v3)
+                isomorphism(storagetype(ham), fuse(v1 * v2' * v3), v1 * v2' * v3)
             end
         end,
     )

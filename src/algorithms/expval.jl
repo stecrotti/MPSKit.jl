@@ -74,18 +74,18 @@ function expectation_value(state, ham::MPOHamiltonian)
     return expectation_value(state, ham, environments(state, ham))
 end
 function expectation_value(state::WindowMPS, ham::MPOHamiltonian, envs::FinEnv)
-    vals = expectation_value_fimpl(state, ham, envs)
+    return expectation_value_fimpl(state, ham, envs)
 
-    tot = 0.0 + 0im
-    for i in 1:(ham.odim), j in 1:(ham.odim)
-        tot += @plansor leftenv(envs, length(state), state)[i][1 2; 3] *
-            state.AC[end][3 4; 5] *
-            rightenv(envs, length(state), state)[j][5 6; 7] *
-            ham[length(state)][i, j][2 8; 4 6] *
-            conj(state.AC[end][1 8; 7])
-    end
+    # tot = 0.0 + 0im
+    # for i in 1:(ham.odim), j in 1:(ham.odim)
+    #     tot += @plansor leftenv(envs, length(state), state)[i][1 2; 3] *
+    #         state.AC[end][3 4; 5] *
+    #         rightenv(envs, length(state), state)[j][5 6; 7] *
+    #         ham[length(state)][i, j][2 8; 4 6] *
+    #         conj(state.AC[end][1 8; 7])
+    # end
 
-    return vals, tot / (norm(state.AC[end])^2)
+    # return vals, tot / (norm(state.AC[end])^2)
 end
 
 function expectation_value(state::FiniteMPS, ham::MPOHamiltonian, envs::FinEnv)
@@ -94,39 +94,66 @@ end
 function expectation_value_fimpl(
     state::AbstractFiniteMPS, ham::MPOHamiltonian, envs::FinEnv
 )
-    ens = zeros(scalartype(state), length(state))
-    for i in 1:length(state), (j, k) in keys(ham[i])
-        !((j == 1 && k != 1) || (k == ham.odim && j != ham.odim)) && continue
-
-        cur = @plansor leftenv(envs, i, state)[j][1 2; 3] *
-            state.AC[i][3 7; 5] *
-            rightenv(envs, i, state)[k][5 8; 6] *
-            conj(state.AC[i][1 4; 6]) *
-            ham[i][j, k][2 4; 7 8]
-        if !(j == 1 && k == ham.odim)
-            cur /= 2
-        end
-
-        ens[i] += cur
+    exp_density = zeros(scalartype(state), length(state))
+    for i in 1:length(state)
+        # first row - terms starting at site i
+        # last column - terms ending at site i
+        # top right - single site terms
+        exp_density[i] =
+            (
+                contract_expval(
+                    state.AC[i],
+                    leftenv(envs, i, state)[1, 1, 1],
+                    rightenv(envs, i, state)[1, 2:(end - 1), 1],
+                    ham[i][1, 1, 1, 2:(end - 1)],
+                ) + contract_expval(
+                    state.AC[i],
+                    leftenv(envs, i, state)[1, 2:(end - 1), 1],
+                    rightenv(envs, i, state)[1, end, 1],
+                    ham[i][2:(end - 1), 1, 1, end],
+                    state.AC[i],
+                )
+            ) / 2 + contract_expval(
+                state.AC[i],
+                leftenv(envs, i, state)[1, 1, 1],
+                rightenv(envs, i, state)[1, end, 1],
+                ham[i][1, 1, 1, end],
+                state.AC[i],
+            )
     end
+    
+    
+    
+    # ens = zeros(scalartype(state), length(state))
+    # for i in 1:length(state), (j, k) in keys(ham[i])
+    #     !((j == 1 && k != 1) || (k == ham.odim && j != ham.odim)) && continue
 
-    n = norm(state.AC[end])^2
-    return ens ./ n
+    #     cur = @plansor leftenv(envs, i, state)[j][1 2; 3] *
+    #         state.AC[i][3 7; 5] *
+    #         rightenv(envs, i, state)[k][5 8; 6] *
+    #         conj(state.AC[i][1 4; 6]) *
+    #         ham[i][j, k][2 4; 7 8]
+    #     if !(j == 1 && k == ham.odim)
+    #         cur /= 2
+    #     end
+
+    #     ens[i] += cur
+    # end
+
+    return exp_density ./ norm(state.AC[end])^2
 end
 
-function expectation_value(st::InfiniteMPS, ham::MPOHamiltonian, prevca::MPOHamInfEnv)
+function expectation_value(Ψ::InfiniteMPS, H::MPOHamiltonian, envs::MPOHamInfEnv)
     #calculate energy density
-    len = length(st)
-    ens = PeriodicArray(zeros(scalartype(st.AR[1]), len))
+    len = length(Ψ)
+    ens = PeriodicArray(zeros(scalartype(Ψ.AR[1]), len))
     for i in 1:len
-        util = fill_data!(similar(st.AL[1], space(prevca.lw[ham.odim, i + 1], 2)), one)
-        for j in (ham.odim):-1:1
-            apl =
-                leftenv(prevca, i, st)[j] *
-                TransferMatrix(st.AL[i], ham[i][j, ham.odim], st.AL[i])
-            ens[i] += @plansor apl[1 2; 3] * r_LL(st, i)[3; 1] * conj(util[2])
-        end
+        util = convert(BlockTensorMap, fill_data!(similar(Ψ.AL[1], space(envs.lw[i + 1][1, end, 1], 2)), one))
+        apl = leftenv(envs, i, Ψ) * TransferMatrix(Ψ.AL[i], H[i][:, 1, 1, end], Ψ.AL[i])
+        ρ = convert(BlockTensorMap, r_LL(Ψ, i))
+        ens[i] = @plansor apl[1 2; 3] * ρ[3; 1] * conj(util[2])
     end
+    
     return ens
 end
 
@@ -188,4 +215,21 @@ end
 expectation_value(state::FiniteQP, opp) = expectation_value(convert(FiniteMPS, state), opp)
 function expectation_value(state::FiniteQP, opp::MPOHamiltonian)
     return expectation_value(convert(FiniteMPS, state), opp)
+end
+
+function contract_expval(A::MPSTensor{S}, GL::MPSTensor{S}, GR::MPSTensor{S}, O::MPOTensor{S}, Ā::MPSTensor{S}=A) where {S}
+    return @plansor GL[1 2; 3] * A[3 7; 5] * GR[5 8; 6] * O[2 4; 7 8] * conj(Ā[1 4; 6])
+end
+function contract_expval(
+    A::MPSTensor{S},
+    GL::MPSTensor{S},
+    GR::MPSTensor{S},
+    O::BlockTensorMap{S,2,2},
+    Ā::MPSTensor{S}=A,
+) where {S}
+    return @plansor convert(BlockTensorMap, GL)[1 2; 3] *
+        convert(BlockTensorMap, A)[3 7; 5] *
+        convert(BlockTensorMap, GR)[5 8; 6] *
+        O[2 4; 7 8] *
+        conj(convert(BlockTensorMap, Ā)[1 4; 6])
 end

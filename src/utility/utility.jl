@@ -20,7 +20,9 @@ function _transpose_as(
 end
 
 _firstspace(t::AbstractTensorMap) = space(t, 1)
+_firstspace(t::BlockTensorMap) = space(t, 1)
 _lastspace(t::AbstractTensorMap) = space(t, numind(t))
+_lastspace(t::BlockTensorMap) = space(t, numind(t))
 
 #given a hamiltonian with unit legs on the side, decompose it using svds to form a "localmpo"
 function decompose_localmpo(
@@ -123,6 +125,7 @@ function fill_data!(a::TensorMap, dfun)
     return a
 end
 randomize!(a::TensorMap) = fill_data!(a, randn)
+randomize!(a::BlockTensorMap) = randomize!.(parent(a))
 
 function safe_xlogx(t::AbstractTensorMap, eps=eps(real(scalartype(t))))
     (U, S, V) = tsvd(t; alg=SVD(), trunc=truncbelow(eps))
@@ -149,4 +152,21 @@ function between(x1, x, x2)
     x < x1 && return x1
     x > x2 && return x2
     return x
+end
+function fuser(::Type{T}, V1::S, V2::S) where {T<:Number,S<:IndexSpace}
+    return isomorphism(Matrix{T}, fuse(V1 ⊗ V2), V1 ⊗ V2)
+end
+
+function fuser(::Type{T}, V1::SumSpace{S}, V2::SumSpace{S}) where {T<:Number,S<:IndexSpace}
+    W = fuse(V1, V2)
+    TT = tensormaptype(S, 1, 2, T)
+    F = BlockTensorMap(undef_blocks, SparseArray{TT, 3}, W, V1 ⊗ V2)
+    for I in CartesianIndices(F)
+        V = getsubspace(space(F), I)
+        if I[1] == I[2] + (I[3] - 1) * size(F, 2)
+            F[I] = isomorphism(Matrix{T}, V)
+        end
+    end
+    
+    return F
 end

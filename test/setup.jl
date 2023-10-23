@@ -3,31 +3,53 @@
 
 using Test, TestExtras
 using MPSKit
-using MPSKit: _transpose_tail, _transpose_front
-using TensorKit
+using MPSKit: _transpose_tail, _transpose_front, SparseMPOTensor
+using TensorKit, BlockTensorKit
 using TensorKit: PlanarTrivial, ℙ
+using BlockTensorKit: SparseArrayKit
 
 # using TensorOperations
 
-force_planar(x::Number) = x
-function force_planar(x::AbstractTensorMap)
-    cod = reduce(*, map(i -> ℙ^dim(space(x, i)), codomainind(x)))
-    dom = reduce(*, map(i -> ℙ^dim(space(x, i)), domainind(x)))
-    t = TensorMap(zeros, scalartype(x), cod ← dom)
-    copyto!(blocks(t)[PlanarTrivial()], convert(Array, x))
-    return t
-end
-function force_planar(mpo::MPOHamiltonian)
-    return MPOHamiltonian(
-        map(Iterators.product(1:(mpo.period), 1:(mpo.odim), 1:(mpo.odim))) do (i, j, k)
-            force_planar(mpo.Os[i, j, k])
-        end,
-    )
-end
-force_planar(mpo::DenseMPO) = DenseMPO(force_planar.(mpo.opp))
+# force_planar(V::Union{CartesianSpace,ComplexSpace}) = ℙ^dim(V)
+# force_planar(V::ProductSpace) = mapreduce(force_planar, ⊗, V.spaces)
+# force_planar(V::SumSpace) = SumSpace(map(force_planar, V.spaces))
+# function force_planar(x::TensorMap)
+#     cod = force_planar(codomain(x))
+#     dom = force_planar(domain(x))
+#     t = TensorMap(undef, scalartype(x), cod ← dom)
+#     copyto!(blocks(t)[PlanarTrivial()], convert(Array, x))
+#     return t
+# end
+# function force_planar(x::BlockTensorMap{S,N1,N2}) where {S,N1,N2}
+#     cod = force_planar(codomain(x))
+#     dom = force_planar(domain(x))
+#     if x isa SparseBlockTensorMap
+#         T = tensormaptype(eltype(spacetype(cod)), N1,N2, scalartype(x))
+#         t = BlockTensorMap(undef_blocks, BlockTensorKit.SparseArray{T,N1+N2}, cod, dom)
+#         for (I, V) in SparseArrayKit.nonzero_pairs(parent(x))
+#             parent(t)[I] = force_planar(V)
+#         end
+#     else
+#         t = BlockTensorMap(undef, scalartype(x), cod ← dom)
+#         map!(force_planar, parent(t), parent(x))
+#     end
+#     return t
+# end
+# function force_planar(x::SparseMPOTensor)
+#     return SparseMPOTensor(force_planar(x.tensors), x.scalars)
+# end
+# function force_planar(x::MPSKit.SparseMPO)
+#     return SparseMPO(force_planar.(x.data))
+# end
+# function force_planar(x::MPSKit.MPOHamiltonian)
+#     return MPOHamiltonian(force_planar(x.data))
+# end
+# force_planar(mpo::DenseMPO) = DenseMPO(force_planar.(mpo.data))
+force_planar(x) = x
+
 
 # Toy models
-# ----------------------------
+# ----------
 using LinearAlgebra: Diagonal
 
 function transverse_field_ising(; g=1.0)

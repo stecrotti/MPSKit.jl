@@ -20,10 +20,10 @@ end
 
 function environments(below, t::Tuple, args...; kwargs...)
     return environments(below, t[1], t[2], args...; kwargs...)
-end;
+end
 function environments(below, opp, leftstart, rightstart)
     return environments(below, opp, nothing, leftstart, rightstart)
-end;
+end
 function environments(below, opp, above, leftstart, rightstart)
     leftenvs = [leftstart]
     rightenvs = [rightstart]
@@ -47,33 +47,30 @@ end
 function environments(
     below::FiniteMPS{S}, ham::Union{SparseMPO,MPOHamiltonian}, above=nothing
 ) where {S}
-    lll = l_LL(below)
-    rrr = r_RR(below)
-    rightstart = Vector{S}()
-    leftstart = Vector{S}()
-
-    for i in 1:(ham.odim)
-        util_left = Tensor(x -> storagetype(S)(undef, x), ham.domspaces[1, i]')
-        fill_data!(util_left, one)
-        util_right = Tensor(x -> storagetype(S)(undef, x), ham.imspaces[length(below), i]')
-        fill_data!(util_right, one)
-
-        @plansor ctl[-1 -2; -3] := lll[-1; -3] * util_left[-2]
-        @plansor ctr[-1 -2; -3] := rrr[-1; -3] * util_right[-2]
-
-        if i != 1
-            ctl = zero(ctl)
-        end
-
-        if (i != ham.odim && ham isa MPOHamiltonian) || (i != 1 && ham isa SparseMPO)
-            ctr = zero(ctr)
-        end
-
-        push!(leftstart, ctl)
-        push!(rightstart, ctr)
+    GL = map(1:length(below)) do i
+        Vmps = SumSpace(left_virtualspace(below, i))
+        Vmpo = left_virtualspace(ham, i)
+        return TensorMap(undef, scalartype(below), Vmps ⊗ Vmpo', Vmps)
     end
-
-    return environments(below, ham, above, leftstart, rightstart)
+    
+    GR = map(1:length(below)) do i
+        Vmps = SumSpace(right_virtualspace(below, i))
+        Vmpo = right_virtualspace(ham, i)
+        return TensorMap(undef, scalartype(below), Vmps ⊗ Vmpo', Vmps)
+    end
+    
+    util_left = Tensor(undef, scalartype(below), space(GL[1][1], 2))
+    @tensor GL[1][1][-1 -2; -3] := l_LL(below)[-1; -3] * util_left[-2]
+    
+    idx = ham isa SparseMPO ? 1 : lastindex(GR[end])
+    util_right = Tensor(undef, scalartype(below), space(GR[end][idx], 2))
+    @tensor GR[end][idx][-1 -2; -3] := r_RR(below)[-1; -3] * util_right[-2]
+    
+    
+    left_deps = fill(similar(below.AL[1]), length(below))
+    right_deps = fill(similar(below.AR[1]), length(below))
+    
+    return FinEnv(above, ham, left_deps, right_deps, GL, GR)
 end
 
 #extract the correct leftstart/rightstart for WindowMPS
@@ -116,35 +113,32 @@ function poison!(ca::FinEnv, ind)
 end
 
 #rightenv[ind] will be contracteable with the tensor on site [ind]
-function rightenv(ca::FinEnv, ind, state)
-    a = findfirst(i -> !(state.AR[i] === ca.rdependencies[i]), length(state):-1:(ind + 1))
-    a = a == nothing ? nothing : length(state) - a + 1
-
-    if a != nothing
-        #we need to recalculate
+function rightenv(cache::FinEnv, ind, ψ)
+    a = findlast(i -> ψ.AR[i] !== cache.rdependencies[i], (ind + 1):length(ψ))
+    
+    if !isnothing(a) # we need to recalculate
         for j in a:-1:(ind + 1)
-            above = isnothing(ca.above) ? state.AR[j] : ca.above.AR[j]
-            ca.rightenvs[j] =
-                TransferMatrix(above, ca.opp[j], state.AR[j]) * ca.rightenvs[j + 1]
-            ca.rdependencies[j] = state.AR[j]
+            above = isnothing(cache.above) ? ψ.AR[j] : cache.above.AR[j]
+            cache.rightenvs[j] =
+                TransferMatrix(above, cache.opp[j], ψ.AR[j]) * cache.rightenvs[j + 1]
+            cache.rdependencies[j] = ψ.AR[j]
         end
     end
 
-    return ca.rightenvs[ind + 1]
+    return cache.rightenvs[ind + 1]
 end
 
-function leftenv(ca::FinEnv, ind, state)
-    a = findfirst(i -> !(state.AL[i] === ca.ldependencies[i]), 1:(ind - 1))
+function leftenv(cache::FinEnv, ind, ψ)
+    a = findfirst(i -> ψ.AL[i] !== cache.ldependencies[i], 1:(ind - 1))
 
-    if a != nothing
-        #we need to recalculate
+    if !isnothing(a) # we need to recalculate
         for j in a:(ind - 1)
-            above = isnothing(ca.above) ? state.AL[j] : ca.above.AL[j]
-            ca.leftenvs[j + 1] =
-                ca.leftenvs[j] * TransferMatrix(above, ca.opp[j], state.AL[j])
-            ca.ldependencies[j] = state.AL[j]
+            above = isnothing(cache.above) ? ψ.AL[j] : cache.above.AL[j]
+            cache.leftenvs[j + 1] =
+                cache.leftenvs[j] * TransferMatrix(above, cache.opp[j], ψ.AL[j])
+            cache.ldependencies[j] = ψ.AL[j]
         end
     end
 
-    return ca.leftenvs[ind]
+    return cache.leftenvs[ind]
 end
