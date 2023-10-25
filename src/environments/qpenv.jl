@@ -38,58 +38,88 @@ function gen_exci_lw_rw(
     excileg,
 ) where {A}
     B = tensormaptype(spacetype(A), 2, 2, storagetype(A))
-
-    lw = PeriodicArray{B,2}(undef, ham.odim, length(left_gs))
-    rw = PeriodicArray{B,2}(undef, ham.odim, length(left_gs))
-
-    for j in 1:size(lw, 1), i in 1:size(lw, 2)
-        lw[j, i] = fill_data!(
-            similar(
-                left_gs.AL[1],
-                left_virtualspace(left_gs, i - 1) * ham[i].domspaces[j]',
-                excileg' * right_virtualspace(right_gs, i - 1),
-            ),
-            zero,
-        )
-        rw[j, i] = fill_data!(
-            similar(
-                left_gs.AL[1],
-                left_virtualspace(left_gs, i) * ham[i].imspaces[j]',
-                excileg' * right_virtualspace(right_gs, i),
-            ),
-            zero,
+    lw = PeriodicVector{BlockTensorMap{spacetype(A),2,2,B,4}}(undef, length(left_gs))
+    for i in 1:length(lw)
+        V_mps1 = SumSpace(left_virtualspace(left_gs, i - 1))
+        V_mps2 = SumSpace(right_virtualspace(right_gs, i - 1))
+        V_mpo = space(ham[i], 1)
+        lw[i] = BlockTensorMap(
+            undef, scalartype(left_gs), V_mps1 ⊗ V_mpo' ← excileg' ⊗ V_mps2
         )
     end
+    
+    rw = PeriodicVector{BlockTensorMap{spacetype(A),2,2,B,4}}(undef, length(left_gs))
+    for i in 1:length(rw)
+        V_mps1 = SumSpace(left_virtualspace(left_gs, i ))
+        V_mps2 = SumSpace(right_virtualspace(right_gs, i))
+        V_mpo = space(ham[i], 1)
+        rw[i] = BlockTensorMap(
+            undef, scalartype(left_gs), V_mps1 ⊗ V_mpo' ← excileg' ⊗ V_mps2
+        )
+    end
+    # lw = PeriodicArray{B,2}(undef, length(ham), length(left_gs))
+    # rw = PeriodicArray{B,2}(undef, length(ham), length(left_gs))
 
-    return (lw, rw)
+    # for j in 1:size(lw, 1), i in 1:size(lw, 2)
+    #     lw[j, i] = fill_data!(
+    #         similar(
+    #             left_gs.AL[1],
+    #             left_virtualspace(left_gs, i - 1) * ham[i].domspaces[j]',
+    #             excileg' * right_virtualspace(right_gs, i - 1),
+    #         ),
+    #         zero,
+    #     )
+    #     rw[j, i] = fill_data!(
+    #         similar(
+    #             left_gs.AL[1],
+    #             left_virtualspace(left_gs, i) * ham[i].imspaces[j]',
+    #             excileg' * right_virtualspace(right_gs, i),
+    #         ),
+    #         zero,
+    #     )
+    # end
+
+    return lw, rw
 end
 
 function environments(
     exci::InfiniteQP, ham::MPOHamiltonian, lenvs, renvs; solver=Defaults.linearsolver
 )
-    ids = collect(Iterators.filter(x -> isid(ham, x), 2:(ham.odim - 1)))
+    ids = collect(Iterators.filter(x -> isone(ham, x), 2:(virtualdim(ham) - 1)))
 
     AL = exci.left_gs.AL
     AR = exci.right_gs.AR
 
-    (lBs, rBs) = gen_exci_lw_rw(exci.left_gs, ham, exci.right_gs, space(exci[1], 3))
+    lBs, rBs = gen_exci_lw_rw(exci.left_gs, ham, exci.right_gs, space(exci[1], 3))
 
     for pos in 1:length(exci)
-        lBs[:, pos + 1] =
-            lBs[:, pos] * TransferMatrix(AR[pos], ham[pos], AL[pos]) /
-            exp(1im * exci.momentum)
-        lBs[:, pos + 1] +=
-            leftenv(lenvs, pos, exci.left_gs) *
-            TransferMatrix(exci[pos], ham[pos], AL[pos]) / exp(1im * exci.momentum)
-
-        exci.trivial && for i in ids
-            @plansor lBs[i, pos + 1][-1 -2; -3 -4] -=
-                lBs[i, pos + 1][1 4; -3 2] *
-                r_RL(exci.left_gs, pos)[2; 3] *
+        lBs[pos + 1] = lBs[pos] * TransferMatrix(AR[pos], ham[pos], AL[pos]) / exp(1im * exci.momentum)
+        add!(lBs[pos + 1], leftenv(lenvs, pos, exci.left_gs) *
+            TransferMatrix(exci[pos], ham[pos], AL[pos]), inv(exp(1im * exci.momentum)))
+        
+        if exci.trivial
+            @plansor lBs[pos + 1][-1 -2; -3 -4] -=
+                lBs[pos + 1][1 4; -3 2] *
+                convert(BlockTensorMap, r_RL(exci.left_gs, pos))[2; 3] *
                 τ[3 4; 5 1] *
-                l_RL(exci.left_gs, pos + 1)[-1; 6] *
+                convert(BlockTensorMap, l_RL(exci.left_gs, pos + 1))[-1; 6] *
                 τ[5 6; -4 -2]
         end
+        # lBs[:, pos + 1] =
+        #     lBs[:, pos] * TransferMatrix(AR[pos], ham[pos], AL[pos]) /
+        #     exp(1im * exci.momentum)
+        # lBs[:, pos + 1] +=
+        #     leftenv(lenvs, pos, exci.left_gs) *
+        #     TransferMatrix(exci[pos], ham[pos], AL[pos]) / exp(1im * exci.momentum)
+
+        # exci.trivial && for i in ids
+        #     @plansor lBs[i, pos + 1][-1 -2; -3 -4] -=
+        #         lBs[i, pos + 1][1 4; -3 2] *
+        #         r_RL(exci.left_gs, pos)[2; 3] *
+        #         τ[3 4; 5 1] *
+        #         l_RL(exci.left_gs, pos + 1)[-1; 6] *
+        #         τ[5 6; -4 -2]
+        # end
     end
 
     for pos in length(exci):-1:1

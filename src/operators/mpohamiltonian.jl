@@ -60,35 +60,36 @@ Base.parent(H::MPOHamiltonian) = H.data
 
 function Base.show(io::IO, ::MIME"text/plain", H::Union{MPOHamiltonian,SparseMPO})
     typestr = H isa MPOHamiltonian ? "MPOHamiltonian" : "SparseMPO"
-    println(io, "$(period(H))-periodic $(typestr){$(spacetype(H))}:")
+    println(io, "$(length(H))-periodic $(typestr){$(spacetype(H))}:")
     for (i, W) in enumerate(H)
-        println(io, " W[$i] =")
-        W′ = reshape(parent(W), size(W, 1), size(W, 4))
-        if max(size(W′)...) <= 16
-            _print_jordanmpo(io, W′)
-        else
-            _print_braille(io, W′)
-        end
+        println(io, " W[$i] = ")
+        println(W)
+        # W′ = reshape(parent(W), size(W, 1), size(W, 4))
+        # if max(size(W)...) <= 16
+        #     _print_jordanmpo(io, W)
+        # else
+        #     _print_braille(io, W)
+        # end
         
     end
 end
 
 function _print_jordanmpo(io, W)
-    print_str = fill('.', size(W))
-    for (j, O) in nonzero_pairs(W)
+    print_str = fill('.', (size(W, 1), size(W, 4)))
+    for (j, O) in BlockTensorKit.nonzero_pairs(W)
         if O isa TensorKit.BraidingTensor
             print_str[j] = 'τ'
-        elseif j[1] == 1 && j[2] == size(W, 2)
+        elseif j[1] == 1 && j[4] == size(W, 4)
             print_str[j] = 'D'
         elseif j[1] == 1
             print_str[j] = 'C'
-        elseif j[2] == size(W, 2)
+        elseif j[4] == size(W, 4)
             print_str[j] = 'B'
         else
             print_str[j] = 'A'
         end
     end
-    for (j, row) in enumerate(eachrow(reshape(print_str, size(W, 1), size(W, 2))))
+    for (j, row) in enumerate(eachrow(reshape(print_str, size(W, 1), size(W, 4))))
         start = j == 1 ? "┌" : j == size(W, 1) ? "└" : "│"
         stop = j == 1 ? "┐" : j == size(W, 1) ? "┘" : "│"
         println(io, start, join(row, ' '), stop)
@@ -135,7 +136,7 @@ function _print_braille(io, W)
     rowscale = max(1, scaleHeight - 1) / max(1, m - 1)
     colscale = max(1, scaleWidth - 1) / max(1, n - 1)
     
-    for I in nonzero_keys(W)
+    for I in BlockTensorKit.nonzero_keys(W)
         si = round(Int, (I[1] - 1) * rowscale + 1)
         sj = round(Int, (I[2] - 1) * colscale + 1)
         
