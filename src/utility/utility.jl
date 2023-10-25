@@ -1,3 +1,6 @@
+const AbstractBlockOrTensorMap{S,N₁,N₂} = Union{BlockTensorMap{S,N₁,N₂}, AbstractTensorMap{S,N₁,N₂}} where {S,N₁,N₂}
+
+
 function _transpose_front(t::AbstractTensorMap) # make TensorMap{S,N₁+N₂-1,1}
     I1 = TensorKit.codomainind(t)
     I2 = TensorKit.domainind(t)
@@ -160,11 +163,11 @@ end
 function fuser(::Type{T}, V1::SumSpace{S}, V2::SumSpace{S}) where {T<:Number,S<:IndexSpace}
     W = fuse(V1, V2)
     TT = tensormaptype(S, 1, 2, T)
-    F = BlockTensorMap(undef_blocks, SparseArray{TT, 3}, W, V1 ⊗ V2)
+    F = BlockTensorMap{S,1,2,TT,3}(undef, W ← V1 ⊗ V2)
     for I in CartesianIndices(F)
         V = getsubspace(space(F), I)
         if I[1] == I[2] + (I[3] - 1) * size(F, 2)
-            F[I] = isomorphism(Matrix{T}, V)
+            F[I] = isomorphism(storagetype(F), V)
         end
     end
     

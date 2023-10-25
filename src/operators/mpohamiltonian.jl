@@ -9,7 +9,7 @@
 
 struct MPOHamiltonian{T<:SparseMPOTensor} <: AbstractMPO
     data::PeriodicVector{T}
-    function MPOHamiltonian(data::AbstractVector{T}) where {T<:SparseMPOTensor}
+    function MPOHamiltonian{T}(data::AbstractVector{T}) where {T<:SparseMPOTensor}
         for i in eachindex(data)
             Vₗ = left_virtualspace(data[i])
             Vᵣ = dual(right_virtualspace(data[i - 1]))
@@ -21,6 +21,8 @@ struct MPOHamiltonian{T<:SparseMPOTensor} <: AbstractMPO
         return new{T}(convert(PeriodicArray, data))
     end
 end
+
+MPOHamiltonian(data::AbstractVector{T}) where {T} = MPOHamiltonian{T}(data)
 
 # BlockTensorKit.blocktype(::MPOHamiltonian{T}) where {T} = blocktype(T)
 
@@ -51,7 +53,7 @@ function MPOHamiltonian(t::TensorMap{S,N,N}) where {S,N}
         W[i, 1, 1, i + 1] = O
     end
     
-    return MPOHamiltonian(PeriodicVector([W]))
+    return MPOHamiltonian(PeriodicArray([W]))
 end
 
 Base.parent(H::MPOHamiltonian) = H.data
@@ -319,7 +321,12 @@ function Base.:*(a::MPOHamiltonian, b::Number)
     return MPOHamiltonian(nOs)
 end
 
-function Base.:*(b::MPOHamiltonian{T}, a::MPOHamiltonian{T}) where {T}
+function Base.:*(a::H1, b::H2) where {H1<:MPOHamiltonian,H2<:MPOHamiltonian}
+    a′, b′ = promote(a, b)
+    return *(a′, b′)
+end
+function Base.:*(b::H, a::H) where {H<:MPOHamiltonian}
+    T = eltype(b.data)
     S = spacetype(T)
     period(b) == period(a) || throw(ArgumentError("periodicity should match: $(period(b)) ≠ $(period(a))"))
     
@@ -328,7 +335,7 @@ function Base.:*(b::MPOHamiltonian{T}, a::MPOHamiltonian{T}) where {T}
     
     C = similar(b.data)
     for i in 1:period(b)
-        C[i] = BlockTensorMap(undef_blocks, blocktype(b), space(Fs[i], 1) ⊗ physicalspace(b, i) ← physicalspace(a, i) ⊗ space(Fs[i + 1], 1))
+        C[i] = T(undef, space(Fs[i], 1) ⊗ physicalspace(b, i) ← physicalspace(a, i) ⊗ space(Fs[i + 1], 1))
         @plansor C[i][-1 -2; -3 -4] = Fs[i][-1; 1 2] * a[i][1 5; -3 3] * b[i][2 -2; 5 4] * conj(Fs[i + 1][-4; 3 4])
         
         # restore sparsity -> when both factors are braidingtensors, we know that the
@@ -375,9 +382,10 @@ end
 # promotion and conversion
 # ------------------------
 function Base.promote_rule(
-    ::Type{MPOHamiltonian{T₁}}, ::Type{MPOHamiltonian{T₂}}
-) where {T₁,T₂}
-    return MPOHamiltonian{promote_type(T₁, T₂)}
+    ::Type{<:MPOHamiltonian{<:BlockTensorMap{S,N₁,N₂,T₁,N}}}, ::Type{<:MPOHamiltonian{<:BlockTensorMap{S,N₁,N₂,T₂,N}}}
+) where {S,N₁,N₂,T₁,T₂,N}
+    T = promote_type(T₁, T₂)
+    return MPOHamiltonian{BlockTensorMap{S,N₁,N₂,T,N}}
 end
 
 function Base.convert(::Type{MPOHamiltonian{T}}, x::MPOHamiltonian) where {T}

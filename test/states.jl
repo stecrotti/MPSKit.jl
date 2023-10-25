@@ -139,7 +139,6 @@ end
 
     @test v2 < v1
     @test real(e2[2]) ≤ real(e1[2])
-
     (window, envs) = timestep(window, ham, 0.1, TDVP2(), envs)
     (window, envs) = timestep(window, ham, 0.1, TDVP(), envs)
 

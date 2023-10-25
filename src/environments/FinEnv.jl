@@ -50,13 +50,13 @@ function environments(
     GL = map(1:length(below)) do i
         Vmps = SumSpace(left_virtualspace(below, i))
         Vmpo = left_virtualspace(ham, i)
-        return TensorMap(undef, scalartype(below), Vmps ⊗ Vmpo', Vmps)
+        return BlockTensorMap(undef, scalartype(below), Vmps ⊗ Vmpo' ← Vmps)
     end
     
     GR = map(1:length(below)) do i
         Vmps = SumSpace(right_virtualspace(below, i))
         Vmpo = right_virtualspace(ham, i)
-        return TensorMap(undef, scalartype(below), Vmps ⊗ Vmpo', Vmps)
+        return BlockTensorMap(undef, scalartype(below), Vmps ⊗ Vmpo' ← Vmps)
     end
     
     util_left = Tensor(undef, scalartype(below), space(GL[1][1], 2))
@@ -65,7 +65,6 @@ function environments(
     idx = ham isa SparseMPO ? 1 : lastindex(GR[end])
     util_right = Tensor(undef, scalartype(below), space(GR[end][idx], 2))
     @tensor GR[end][idx][-1 -2; -3] := r_RR(below)[-1; -3] * util_right[-2]
-    
     
     left_deps = fill(similar(below.AL[1]), length(below))
     right_deps = fill(similar(below.AR[1]), length(below))
@@ -114,10 +113,10 @@ end
 
 #rightenv[ind] will be contracteable with the tensor on site [ind]
 function rightenv(cache::FinEnv, ind, ψ)
-    a = findlast(i -> ψ.AR[i] !== cache.rdependencies[i], (ind + 1):length(ψ))
+    a = findlast(i -> !(ψ.AR[i] === cache.rdependencies[i]), (ind + 1):length(ψ))
     
     if !isnothing(a) # we need to recalculate
-        for j in a:-1:(ind + 1)
+        for j in (a + ind - 1):-1:(ind + 1)
             above = isnothing(cache.above) ? ψ.AR[j] : cache.above.AR[j]
             cache.rightenvs[j] =
                 TransferMatrix(above, cache.opp[j], ψ.AR[j]) * cache.rightenvs[j + 1]

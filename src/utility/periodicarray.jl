@@ -29,7 +29,9 @@ See also [`PeriodicVector`](@ref), [`PeriodicMatrix`](@ref)
 struct PeriodicArray{T,N} <: AbstractArray{T,N}
     data::Array{T,N}
 end
-PeriodicArray(data::AbstractArray{T,N}) where {T,N} = PeriodicArray{T,N}(data)
+PeriodicArray(data::AbstractArray{T,N}) where {T,N} = PeriodicArray{T,N}(convert(Array{T,N}, data))
+
+
 function PeriodicArray{T}(initializer, args...) where {T}
     return PeriodicArray(Array{T}(initializer, args...))
 end

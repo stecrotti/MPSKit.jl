@@ -99,6 +99,10 @@ function expectation_value_fimpl(
         # first row - terms starting at site i
         # last column - terms ending at site i
         # top right - single site terms
+        
+        @show space(envs.leftenvs[i])
+        @show space(envs.rightenvs[i])
+        @show space(ham[i])
         exp_density[i] =
             (
                 contract_expval(
@@ -222,8 +226,8 @@ function contract_expval(A::MPSTensor{S}, GL::MPSTensor{S}, GR::MPSTensor{S}, O:
 end
 function contract_expval(
     A::MPSTensor{S},
-    GL::MPSTensor{S},
-    GR::MPSTensor{S},
+    GL::AbstractMPSTensor{S},
+    GR::AbstractMPSTensor{S},
     O::BlockTensorMap{S,2,2},
     Ā::MPSTensor{S}=A,
 ) where {S}

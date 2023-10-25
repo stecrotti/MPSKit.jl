@@ -98,7 +98,7 @@ function ∂AC(x::MPSTensor, ham::SparseMPOSlice, leftenv, rightenv)::typeof(x)
             add!(y, ∂AC(x, ham.Os[i, j], leftenv[i], rightenv[j]))
         end
     end
-
+end
 function ∂AC!(y::T, x::T, O::MPOTensor{S}, leftenv::MPSTensor{S}, rightenv::MPSTensor{S})where {S,T<:MPSTensor{S}}
     @plansor begin 
         y[-1 -2; -3] = leftenv[-1 2; 1] * x[1 3; 4] * O[2 -2; 3 5] * rightenv[4 5; -3]
@@ -127,10 +127,8 @@ function ∂AC(
     @plansor begin
         y[-1 -2; -3] := leftenv[-1 2; 1] * x′[1 3; 4] * O[2 -2; 3 5] * rightenv[4 5; -3]
     end
-    return x isa BlockTensorMap ? y : y[1]
+    return x isa BlockTensorMap ? y : only(y)
 end
-
-
 
 # mpo multiline
 function ∂AC(x::RecursiveVec, opp, leftenv, rightenv)
@@ -191,14 +189,24 @@ function ∂AC2(x::MPOTensor, opp1::MPOTensor, opp2::MPOTensor, leftenv, righten
         opp2[4 -4; 3 2] *
         rightenv[1 2; -3]
 end
-function ∂AC2(x::MPOTensor, ::Nothing, ::Nothing, leftenv, rightenv)
-    @plansor y[-1 -2; -3 -4] := x[1 -2; 2 -4] * leftenv[-1; 1] * rightenv[2; -3]
-end
+# function ∂AC2(x::MPOTensor, ::Nothing, ::Nothing, leftenv, rightenv)
+#     @plansor y[-1 -2; -3 -4] := x[1 -2; 2 -4] * leftenv[-1; 1] * rightenv[2; -3]
+# end
 
-function ∂AC2(x::RecursiveVec, opp1, opp2, leftenv, rightenv)
-    return RecursiveVec(
-        circshift(map(t -> ∂AC2(t...), zip(x.vecs, opp1, opp2, leftenv, rightenv)), 1)
-    )
+# function ∂AC2(x::RecursiveVec, opp1, opp2, leftenv, rightenv)
+#     return RecursiveVec(
+#         circshift(map(t -> ∂AC2(t...), zip(x.vecs, opp1, opp2, leftenv, rightenv)), 1)
+#     )
+# end
+function ∂AC2(x::MPOTensor{S}, O1::AbstractMPOTensor{S}, O2::AbstractMPOTensor{S}, leftenv::AbstractMPSTensor{S}, rightenv::AbstractMPSTensor{S}) where {S}
+    x′ = convert(BlockTensorMap, x) # TODO: this should not be necessary?
+    @plansor y[-1 -2; -3 -4] :=
+        leftenv[-1 7; 6] *
+        x′[6 5; 1 3] *
+        O1[7 -2; 5 4] *
+        O2[4 -4; 3 2] *
+        rightenv[1 2; -3]
+    return x isa BlockTensorMap ? y : only(y)
 end
 
 """

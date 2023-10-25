@@ -147,6 +147,7 @@ function squaredenvs(
 )
     nham = conj(H) * H
     L = length(state)
+    vdim = virtualdim(H)
 
     # to construct the squared caches we will first initialize environments
     # then make all data invalid so it will be recalculated
@@ -160,11 +161,11 @@ function squaredenvs(
 
     # impose the correct boundary conditions
     # (important for comoving mps, should do nothing for finite mps)
-    indmap = LinearIndices((H.odim, H.odim))
+    indmap = LinearIndices((vdim, vdim))
     @sync begin
         Threads.@spawn begin
             nleft = leftenv(ncocache, 1, state)
-            for i in 1:(H.odim), j in 1:(H.odim)
+            for i in 1:vdim, j in 1:vdim
                 nleft[indmap[i, j]] = _contract_leftenv²(
                     leftenv(envs, 1, state)[j], leftenv(envs, 1, state)[i]
                 )
@@ -172,7 +173,7 @@ function squaredenvs(
         end
         Threads.@spawn begin
             nright = rightenv(ncocache, L, state)
-            for i in 1:(H.odim), j in 1:(H.odim)
+            for i in 1:vdim, j in 1:vdim
                 nright[indmap[i, j]] = _contract_rightenv²(
                     rightenv(envs, L, state)[j], rightenv(envs, L, state)[i]
                 )

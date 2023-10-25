@@ -159,6 +159,7 @@ end
 
 function variance(state::WindowMPS, ham::MPOHamiltonian, envs=environments(state, ham))
     #tricky to define
+    # TODO: this silently takes H * conj(H), not H^2
     (ham2, nenvs) = squaredenvs(state, ham, envs)
     return real(
         expectation_value(state, ham2, nenvs)[2] - expectation_value(state, ham, envs)[2]^2

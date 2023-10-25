@@ -7,6 +7,9 @@ const GenericMPSTensor{S,N} = AbstractTensorMap{S,N,1} where {S,N} #some functio
 const MPSTensor{S} = GenericMPSTensor{S,2} where {S} #the usual mps tensors on which we work
 #const ExMPSTensor{S,N,A,G,F1,F2}=GenericMPSTensor{S,3,A,G,F1,F2} #and mps tensor with an extra excitation - utility leg
 
+const AbstractMPSTensor{S} = AbstractBlockOrTensorMap{S,2,1}
+
+
 """
     MPSTensor([f, eltype], d::Int, left_D::Int, [right_D]::Int])
     MPSTensor([f, eltype], physicalspace::Union{S,CompositeSpace{S}}, 
