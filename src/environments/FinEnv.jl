@@ -60,15 +60,17 @@ function environments(
     end
     
     util_left = Tensor(undef, scalartype(below), space(GL[1][1], 2))
-    @tensor GL[1][1][-1 -2; -3] := l_LL(below)[-1; -3] * util_left[-2]
-    
+    fill_data!(util_left, one)
+    @tensor start_left[-1 -2; -3] := l_LL(below)[-1; -3] * util_left[-2]
+    GL[1][1] = start_left
     idx = ham isa SparseMPO ? 1 : lastindex(GR[end])
     util_right = Tensor(undef, scalartype(below), space(GR[end][idx], 2))
-    @tensor GR[end][idx][-1 -2; -3] := r_RR(below)[-1; -3] * util_right[-2]
-    
+    fill_data!(util_right, one)
+    @tensor start_right[-1 -2; -3] := r_RR(below)[-1; -3] * util_right[-2]
+    GR[end][idx] = start_right
     left_deps = fill(similar(below.AL[1]), length(below))
     right_deps = fill(similar(below.AR[1]), length(below))
-    
+    @show norm.(GL), norm.(GR)
     return FinEnv(above, ham, left_deps, right_deps, GL, GR)
 end
 
@@ -117,10 +119,13 @@ function rightenv(cache::FinEnv, ind, ψ)
     a = findlast(i -> ψ.AR[i] !== cache.rdependencies[i], (ind + 1):length(ψ))
     
     if !isnothing(a) # we need to recalculate
-        for j in (a + ind - 1):-1:(ind + 1)
+        for j in (a + ind):-1:(ind + 1)
+            @info "recalculating rightenv $j"
             above = isnothing(cache.above) ? ψ.AR[j] : cache.above.AR[j]
+            @assert norm(cache.rightenvs[j + 1]) > 1e-12
             cache.rightenvs[j] =
                 TransferMatrix(above, cache.opp[j], ψ.AR[j]) * cache.rightenvs[j + 1]
+            @assert norm(cache.rightenvs[j]) > 1e-12
             cache.rdependencies[j] = ψ.AR[j]
         end
     end
@@ -134,7 +139,9 @@ function leftenv(cache::FinEnv, ind, ψ)
 
     if !isnothing(a) # we need to recalculate
         for j in a:(ind - 1)
+            @info "recalculating leftenv $j"
             above = isnothing(cache.above) ? ψ.AL[j] : cache.above.AL[j]
+            @assert norm(cache.leftenvs[j]) > 1e-12
             cache.leftenvs[j + 1] =
                 cache.leftenvs[j] * TransferMatrix(above, cache.opp[j], ψ.AL[j])
             cache.ldependencies[j] = ψ.AL[j]

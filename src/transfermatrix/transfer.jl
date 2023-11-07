@@ -122,7 +122,7 @@ function transfer_left(
 ) where {S}
     
     A′, Ā′ = convert.(BlockTensorMap, (A, Ā))
-    @plansor contractcheck=true y[-1 -2; -3] := x[1 2; 4] * A′[4 5; -3] * O[2 3; 5 -2] * conj(Ā′[1 3; -1])
+    @plansor y[-1 -2; -3] := x[1 2; 4] * A′[4 5; -3] * O[2 3; 5 -2] * conj(Ā′[1 3; -1])
 end
 
 function transfer_right(
@@ -138,12 +138,6 @@ function transfer_right(
     Ā::MPSTensor{S},
 ) where {S}
     A′, Ā′ = convert.(BlockTensorMap, (A, Ā))
-    TensorOperations.checkcontractible(Ā′, 3, :C, x, 3, :N, 5)
-    TensorOperations.checkcontractible(O, 2, :N, Ā′, 2, :C, 4)
-    TensorOperations.checkcontractible(A′, 2, :N, O, 3, :N, 2)
-    TensorOperations.checkcontractible(O, 4, :N, x, 2, :N, 3)
-    TensorOperations.checkcontractible(A′, 3, :N, x, 1, :N, 1)
-
     @plansor y[-1 -2; -3] := A′[-1 2; 1] * O[-2 4; 2 3] * conj(Ā′[-3 4; 5]) * x[1 3; 5]
     return y
 end

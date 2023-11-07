@@ -20,87 +20,88 @@ function make_time_mpo(H′::MPOHamiltonian, dt::Number, ::TaylorCluster{N}) whe
     # extension step: Algorithm 3
     # incorporate higher order terms
     # TODO: don't need to fully construct H_next...
-    H_next = H_n * H
-    linds_next = LinearIndices(ntuple(i -> virtualdim(H), N + 1))
-    for (i, slice) in enumerate(H_n.data)
-        for a in cinds, b in cinds
-            all(>(1), b.I) || continue
-            all(in((1, virtualdim(H))), a.I) && any(==(virtualdim(H)), a.I) && continue
+    # H_next = H_n * H
+    # linds_next = LinearIndices(ntuple(i -> virtualdim(H), N + 1))
+    # for (i, slice) in enumerate(H_n.data)
+    #     for a in cinds, b in cinds
+    #         all(>(1), b.I) || continue
+    #         all(in((1, virtualdim(H))), a.I) && any(==(virtualdim(H)), a.I) && continue
             
-            n1 = count(==(1), a.I) + 1
-            n3 = count(==(virtualdim(H)), b.I) + 1
-            factor = τ * factorial(N) / (factorial(N + 1) * n1 * n3)
+    #         n1 = count(==(1), a.I) + 1
+    #         n3 = count(==(virtualdim(H)), b.I) + 1
+    #         factor = τ * factorial(N) / (factorial(N + 1) * n1 * n3)
             
-            for c in 1:N+1, d in 1:N+1
-                aₑ = insert!([a.I...], c, 1)
-                bₑ = insert!([b.I...], d, virtualdim(H))
+    #         for c in 1:N+1, d in 1:N+1
+    #             aₑ = insert!([a.I...], c, 1)
+    #             bₑ = insert!([b.I...], d, virtualdim(H))
                 
-                # TODO: use VectorInterface for memory efficiency
-                slice[linds[a], 1, 1, linds[b]] += factor * H_next[i][linds_next[aₑ...], 1, 1, linds_next[bₑ...]]
-            end
-        end
-    end
+    #             # TODO: use VectorInterface for memory efficiency
+    #             slice[linds[a], 1, 1, linds[b]] += factor * H_next[i][linds_next[aₑ...], 1, 1, linds_next[bₑ...]]
+    #         end
+    #     end
+    # end
     
     # loopback step: Algorithm 1
     # constructing the Nth order time evolution MPO
     mpo = convert(SparseMPO, H_n)
+    @show mpo[1]
     for slice in mpo.data
         for b in cinds[2:end]
             all(in((1, virtualdim(H))), b.I) || continue
             
-            b_lin = linds[b]
+            @show b_lin = linds[b]
             a = count(==(virtualdim(H)), b.I)
             factor = τ^a * factorial(N - a) / factorial(N)
-            slice[:, 1, 1, 1] += factor * slice[:, 1, 1, b_lin]
-            
+            slice[:, 1, 1, 1] = slice[:, 1, 1, 1] + factor * slice[:, 1, 1, b_lin]
             for I in BlockTensorKit.nonzero_keys(slice)
                 (I[1] == b_lin || I[4] == b_lin) && delete!(parent(parent(slice)).data, I)
             end
         end
     end
-    
+    @show mpo[1]
     # # Remove equivalent rows and columns: Algorithm 2
-    for slice in mpo.data
-        for c in cinds
-            c_lin = linds[c]
-            s_c = CartesianIndex(sort(c.I, by=(!=(1))))
-            s_r = CartesianIndex(sort(c.I, by=(!=(virtualdim(H)))))
+    # for slice in mpo.data
+    #     for c in cinds
+    #         c_lin = linds[c]
+    #         s_c = CartesianIndex(sort(c.I, by=(!=(1))))
+    #         s_r = CartesianIndex(sort(c.I, by=(!=(virtualdim(H)))))
             
-            n1 = count(==(1), c.I)
-            n3 = count(==(virtualdim(H)), c.I)
+    #         n1 = count(==(1), c.I)
+    #         n3 = count(==(virtualdim(H)), c.I)
             
-            if n3 <= n1 && s_c != c
-                slice[linds[s_c], 1, 1, :] += slice[c_lin, 1, 1, :]
-                for I in BlockTensorKit.nonzero_keys(slice)
-                    (I[1] == c_lin || I[4] == c_lin) && delete!(parent(parent(slice)).data, I)
-                end
-            elseif n3 > n1 && s_r != c
-                slice[:, 1, 1, linds[s_r]] += slice[:, 1, 1, c_lin]
-                for I in BlockTensorKit.nonzero_keys(slice)
-                    (I[1] == c_lin || I[4] == c_lin) && delete!(parent(parent(slice)).data, I)
-                end
-            end
-        end
-    end
-    
+    #         if n3 <= n1 && s_c != c
+    #             slice[linds[s_c], 1, 1, :] += slice[c_lin, 1, 1, :]
+    #             for I in BlockTensorKit.nonzero_keys(slice)
+    #                 (I[1] == c_lin || I[4] == c_lin) && delete!(parent(parent(slice)).data, I)
+    #             end
+    #         elseif n3 > n1 && s_r != c
+    #             slice[:, 1, 1, linds[s_r]] += slice[:, 1, 1, c_lin]
+    #             for I in BlockTensorKit.nonzero_keys(slice)
+    #                 (I[1] == c_lin || I[4] == c_lin) && delete!(parent(parent(slice)).data, I)
+    #             end
+    #         end
+    #     end
+    # end
+    # @show norm.(BlockTensorKit.nonzero_values(mpo[1]))
     # # Approximate compression step: Algorithm 4
-    for slice in mpo.data
-        for a in cinds
-            all(>(1), a.I) || continue
-            a_lin = linds[a]
-            n1 = count(==(virtualdim(H)), a.I)
-            b = CartesianIndex(replace(a.I, virtualdim(H) => 1))
-            b_lin = linds[b]
-            factor = τ^n1 * factorial(N - n1) / factorial(N)
-            slice[:, 1, 1, b_lin] += factor * slice[:, 1, 1, a_lin]
+    # for slice in mpo.data
+    #     for a in cinds
+    #         all(>(1), a.I) || continue
+    #         a_lin = linds[a]
+    #         n1 = count(==(virtualdim(H)), a.I)
+    #         b = CartesianIndex(replace(a.I, virtualdim(H) => 1))
+    #         b_lin = linds[b]
+    #         factor = τ^n1 * factorial(N - n1) / factorial(N)
+    #         slice[:, 1, 1, b_lin] += factor * slice[:, 1, 1, a_lin]
             
-            for I in BlockTensorKit.nonzero_keys(slice)
-                (I[1] == a_lin || I[4] == a_lin) && delete!(parent(parent(slice)).data, I)
-            end
-        end
-    end
-
-    return remove_orphans(mpo)
+    #         for I in BlockTensorKit.nonzero_keys(slice)
+    #             (I[1] == a_lin || I[4] == a_lin) && delete!(parent(parent(slice)).data, I)
+    #         end
+    #     end
+    # end
+    # @show norm.(BlockTensorKit.nonzero_values(mpo[1]))
+    return mpo
+    return remove_orphans!(mpo)
 end
 
     

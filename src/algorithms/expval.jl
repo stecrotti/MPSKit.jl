@@ -99,10 +99,7 @@ function expectation_value_fimpl(
         # first row - terms starting at site i
         # last column - terms ending at site i
         # top right - single site terms
-        
-        @show space(envs.leftenvs[i])
-        @show space(envs.rightenvs[i])
-        @show space(ham[i])
+        @info "computing $i"
         exp_density[i] =
             (
                 contract_expval(
