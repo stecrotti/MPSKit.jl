@@ -47,13 +47,13 @@ end
 function environments(
     below::FiniteMPS{S}, ham::Union{SparseMPO,MPOHamiltonian}, above=nothing
 ) where {S}
-    GL = map(1:length(below)) do i
+    GL = map(0:length(below)) do i
         Vmps = SumSpace(left_virtualspace(below, i))
         Vmpo = left_virtualspace(ham, i)
         return BlockTensorMap(undef, scalartype(below), Vmps ⊗ Vmpo' ← Vmps)
     end
     
-    GR = map(1:length(below)) do i
+    GR = map(0:length(below)) do i
         Vmps = SumSpace(right_virtualspace(below, i))
         Vmpo = right_virtualspace(ham, i)
         return BlockTensorMap(undef, scalartype(below), Vmps ⊗ Vmpo' ← Vmps)
@@ -113,7 +113,8 @@ end
 
 #rightenv[ind] will be contracteable with the tensor on site [ind]
 function rightenv(cache::FinEnv, ind, ψ)
-    a = findlast(i -> !(ψ.AR[i] === cache.rdependencies[i]), (ind + 1):length(ψ))
+    0 <= ind <= length(ψ) || throw(BoundsError(cache, ind))
+    a = findlast(i -> ψ.AR[i] !== cache.rdependencies[i], (ind + 1):length(ψ))
     
     if !isnothing(a) # we need to recalculate
         for j in (a + ind - 1):-1:(ind + 1)
@@ -128,6 +129,7 @@ function rightenv(cache::FinEnv, ind, ψ)
 end
 
 function leftenv(cache::FinEnv, ind, ψ)
+    0 <= ind <= length(ψ) || throw(BoundsError(cache, ind))
     a = findfirst(i -> ψ.AL[i] !== cache.ldependencies[i], 1:(ind - 1))
 
     if !isnothing(a) # we need to recalculate

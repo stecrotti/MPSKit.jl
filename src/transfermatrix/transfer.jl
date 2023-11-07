@@ -120,8 +120,9 @@ function transfer_left(
     A::MPSTensor{S},
     Ā::MPSTensor{S},
 ) where {S}
+    
     A′, Ā′ = convert.(BlockTensorMap, (A, Ā))
-    @plansor y[-1 -2; -3] := x[1 2; 4] * A′[4 5; -3] * O[2 3; 5 -2] * conj(Ā′[1 3; -1])
+    @plansor contractcheck=true y[-1 -2; -3] := x[1 2; 4] * A′[4 5; -3] * O[2 3; 5 -2] * conj(Ā′[1 3; -1])
 end
 
 function transfer_right(

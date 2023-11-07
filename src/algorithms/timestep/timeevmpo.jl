@@ -53,7 +53,7 @@ function make_time_mpo(H′::MPOHamiltonian, dt::Number, ::TaylorCluster{N}) whe
             factor = τ^a * factorial(N - a) / factorial(N)
             slice[:, 1, 1, 1] += factor * slice[:, 1, 1, b_lin]
             
-            for I in nonzero_keys(slice)
+            for I in BlockTensorKit.nonzero_keys(slice)
                 (I[1] == b_lin || I[4] == b_lin) && delete!(parent(parent(slice)).data, I)
             end
         end
@@ -71,12 +71,12 @@ function make_time_mpo(H′::MPOHamiltonian, dt::Number, ::TaylorCluster{N}) whe
             
             if n3 <= n1 && s_c != c
                 slice[linds[s_c], 1, 1, :] += slice[c_lin, 1, 1, :]
-                for I in nonzero_keys(slice)
+                for I in BlockTensorKit.nonzero_keys(slice)
                     (I[1] == c_lin || I[4] == c_lin) && delete!(parent(parent(slice)).data, I)
                 end
             elseif n3 > n1 && s_r != c
                 slice[:, 1, 1, linds[s_r]] += slice[:, 1, 1, c_lin]
-                for I in nonzero_keys(slice)
+                for I in BlockTensorKit.nonzero_keys(slice)
                     (I[1] == c_lin || I[4] == c_lin) && delete!(parent(parent(slice)).data, I)
                 end
             end
@@ -94,7 +94,7 @@ function make_time_mpo(H′::MPOHamiltonian, dt::Number, ::TaylorCluster{N}) whe
             factor = τ^n1 * factorial(N - n1) / factorial(N)
             slice[:, 1, 1, b_lin] += factor * slice[:, 1, 1, a_lin]
             
-            for I in nonzero_keys(slice)
+            for I in BlockTensorKit.nonzero_keys(slice)
                 (I[1] == a_lin || I[4] == a_lin) && delete!(parent(parent(slice)).data, I)
             end
         end

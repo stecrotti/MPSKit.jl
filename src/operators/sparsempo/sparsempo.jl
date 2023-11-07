@@ -39,7 +39,7 @@ end
 
 Base.eltype(::InfiniteMPO{T}) where {T} = T
 Base.eltype(::Type{InfiniteMPO{T}}) where {T} = T
-Base.parent(O::InfiniteMPO) = t.data
+Base.parent(O::InfiniteMPO) = O.data
 period(O::InfiniteMPO) = length(parent(O))
 TensorKit.spacetype(O::Union{InfiniteMPO, Type{<:InfiniteMPO}}) = spacetype(eltype(O))
 
@@ -49,6 +49,7 @@ Base.checkbounds(a::SparseMPO, I...) = true
 # -------------
 Base.parent(a::SparseMPO) = a.data
 Base.size(a::SparseMPO) = size(parent(a))
+Base.length(a::SparseMPO) = length(parent(a))
 Base.getindex(a::SparseMPO, i::Int) = getindex(parent(a), i)
 Base.setindex!(a::SparseMPO, v, i::Int) = setindex!(parent(a), v, i)
 Base.copy(x::SparseMPO) = SparseMPO(copy(parent(x)))
@@ -377,7 +378,58 @@ function Base.convert(::Type{DenseMPO}, s::SparseMPO)
     # return DenseMPO(data)
 end
 
-function remove_orphans(smpo::SparseMPO)
+"""
+    remove_orphans(mpo::SparseMPO)
+
+Prune all branches of the finite state machine that do not contribute. Additionally, attempt
+to compact the representation as much as possible.
+"""
+function remove_orphans(smpo::SparseMPO; tol=eps(real(scalartype(smpo)))^(3/4))
+    # drop zeros
+    for slice in parent(smpo)
+        for (key, val) in BlockTensorKit.nonzero_pairs(slice)
+            norm(val) < tol && delete!(slice, key)
+        end
+    end
+    
+    # drop dead starts/ends
+    changed = true
+    zero_cols = [collect(1:virtualdim(smpo)) for _ in 1:length(smpo)]
+    zero_rows = [collect(1:virtualdim(smpo)) for _ in 1:length(smpo)]
+    while changed
+        changed = false
+        for (i, slice) in enumerate(parent(smpo))
+            nz_keys = BlockTensorKit.nonzero_keys(slice)
+            
+            # remove rows of previous site that lead to dead end
+            setdiff!(zero_cols[i], [x[4] for x in nz_keys])
+            if !isempty(zero_cols[i])
+                for key in BlockTensorKit.nonzero_keys(smpo[i - 1])
+                    if key[1] ∈ empty_col
+                        delete!(smpo[i - 1], key)
+                        changed = true
+                    end
+                end
+            end
+            
+            # remove cols of next site that come from dead end
+            empty_rows = setdiff(1:size(slice, 1), [x[1] for x in nz_keys])
+            if !isempty(empty_rows)
+                for key in BlockTensorKit.nonzero_keys(smpo[i + 1])
+                    if key[4] ∈ empty_row
+                        delete!(smpo[i + 1], key)
+                        changed = true
+                    end
+                end
+            end
+        end
+    end
+    
+    # slice out empty rows and columns
+    for i in 1:length(smpo)
+        empty_cols = setdiff(1:size(smpo[i], 4), [x[4] for x in nz_keys]
+    end
+    
     @warn "not implemented"
     return smpo
     changed = false # if I change the mpo somewhere in the method, then I will return remove_orphans(changed_mpo)
