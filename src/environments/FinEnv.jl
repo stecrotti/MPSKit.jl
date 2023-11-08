@@ -8,8 +8,7 @@
 "
 struct FinEnv{A,B,C,D} <: Cache
     above::A
-
-    opp::B #the operator
+    opp::B # the operator
 
     ldependencies::Vector{C} #the data we used to calculate leftenvs/rightenvs
     rdependencies::Vector{C}
@@ -18,77 +17,73 @@ struct FinEnv{A,B,C,D} <: Cache
     rightenvs::Vector{D}
 end
 
+VectorInterface.scalartype(::Type{<:FinEnv{A,B,C,D}}) where {A,B,C,D} = scalartype(D)
+
+"""
+    FinEnv(ψ::AbstractFiniteMPS, O::Union{InfiniteMPO,MPOHamiltonian})
+
+Initialize environments.
+"""
+function FinEnv(ψ::AbstractFiniteMPS, O::Union{InfiniteMPO,MPOHamiltonian}, above::Union{Nothing,AbstractFiniteMPS})
+    # Initialize left environment tensors
+    GL = map(0:length(ψ)) do i
+        Vbot = left_virtualspace(ψ, i)
+        Vmpo = left_virtualspace(O, i)
+        Vtop = isnothing(above) ? Vbot : left_virtualspace(above, i) 
+        return BlockTensorMap(undef, scalartype(ψ), Vbot ⊗ Vmpo' ← Vtop)
+    end
+
+    # Initialize right environment tensors
+    GR = map(0:length(ψ)) do i
+        Vbot = right_virtualspace(ψ, i)
+        Vmpo = right_virtualspace(O, i)
+        Vtop = isnothing(above) ? Vbot : right_virtualspace(above, i)
+        return BlockTensorMap(undef, scalartype(ψ), Vtop ⊗ Vmpo' ← Vbot)
+    end
+    
+    # Initialize dependency vectors
+    left_deps = fill!(similar(ψ.AL), similar(ψ.AL[1]))
+    right_deps = fill!(similar(ψ.AR), similar(ψ.AR[1]))
+    
+    return FinEnv(above, O, left_deps, right_deps, GL, GR)
+end
+
 function environments(below, t::Tuple, args...; kwargs...)
     return environments(below, t[1], t[2], args...; kwargs...)
 end
-function environments(below, opp, leftstart, rightstart)
-    return environments(below, opp, nothing, leftstart, rightstart)
-end
-function environments(below, opp, above, leftstart, rightstart)
-    leftenvs = [leftstart]
-    rightenvs = [rightstart]
 
-    for i in 1:length(below)
-        push!(leftenvs, similar(leftstart))
-        push!(rightenvs, similar(rightstart))
-    end
-    t = similar(below.AL[1])
-    return FinEnv(
-        above,
-        opp,
-        fill(t, length(below)),
-        fill(t, length(below)),
-        leftenvs,
-        reverse(rightenvs),
-    )
+function environments(ψ::FiniteMPS, O::Union{InfiniteMPO,MPOHamiltonian}, top=nothing)
+    envs = FinEnv(ψ, O, top)
+
+    # left boundary: [1 0 0]
+    I = CartesianIndex(1, 1, 1)
+    GL = envs.leftenvs[1]
+    GL[I] = isometry(storagetype(GL), BlockTensorKit.getsubspace(space(GL), I))
+
+    # right boundary: [1 0 0]' (InfiniteMPO) or [0 0 1]' (MPOHamiltonian)
+    GR = envs.rightenvs[end]
+    I = O isa InfiniteMPO ? CartesianIndex(1, 1, 1) : CartesianIndex(1, lastindex(GR, 2), 1)
+    GR[I] = isometry(storagetype(GR), BlockTensorKit.getsubspace(space(GR), I))
+
+    return envs
 end
 
-#automatically construct the correct leftstart/rightstart for a finitemps
-function environments(
-    below::FiniteMPS{S}, ham::Union{SparseMPO,MPOHamiltonian}, above=nothing
-) where {S}
-    GL = map(0:length(below)) do i
-        Vmps = SumSpace(left_virtualspace(below, i))
-        Vmpo = left_virtualspace(ham, i)
-        return BlockTensorMap(undef, scalartype(below), Vmps ⊗ Vmpo' ← Vmps)
-    end
-    
-    GR = map(0:length(below)) do i
-        Vmps = SumSpace(right_virtualspace(below, i))
-        Vmpo = right_virtualspace(ham, i)
-        return BlockTensorMap(undef, scalartype(below), Vmps ⊗ Vmpo' ← Vmps)
-    end
-    
-    util_left = Tensor(undef, scalartype(below), space(GL[1][1], 2))
-    fill_data!(util_left, one)
-    @tensor start_left[-1 -2; -3] := l_LL(below)[-1; -3] * util_left[-2]
-    GL[1][1] = start_left
-    idx = ham isa SparseMPO ? 1 : lastindex(GR[end])
-    util_right = Tensor(undef, scalartype(below), space(GR[end][idx], 2))
-    fill_data!(util_right, one)
-    @tensor start_right[-1 -2; -3] := r_RR(below)[-1; -3] * util_right[-2]
-    GR[end][idx] = start_right
-    left_deps = fill(similar(below.AL[1]), length(below))
-    right_deps = fill(similar(below.AR[1]), length(below))
-    @show norm.(GL), norm.(GR)
-    return FinEnv(above, ham, left_deps, right_deps, GL, GR)
-end
-
-#extract the correct leftstart/rightstart for WindowMPS
 function environments(
     state::WindowMPS,
     ham::Union{SparseMPO,MPOHamiltonian,DenseMPO},
     above=nothing;
-    lenvs=environments(state.left_gs, ham),
-    renvs=environments(state.right_gs, ham),
+    lenvs=environments(state.left_gs, ham, above),
+    renvs=environments(state.right_gs, ham, above),
 )
-    return environments(
-        state,
-        ham,
-        above,
-        copy(leftenv(lenvs, 1, state.left_gs)),
-        copy(rightenv(renvs, length(state), state.right_gs)),
-    )
+    envs = FinEnv(state, ham, above)
+    
+    # left boundary: extract from left_envs
+    envs.leftenvs[1] = leftenv(lenvs, 1, state.left_gs)
+    
+    # right boundary: extract from right_envs
+    envs.rightenvs[end] = rightenv(renvs, length(state), state.right_gs)
+    
+    return envs
 end
 
 function environments(below::S, above::S) where {S<:Union{FiniteMPS,WindowMPS}}
@@ -120,12 +115,9 @@ function rightenv(cache::FinEnv, ind, ψ)
     
     if !isnothing(a) # we need to recalculate
         for j in (a + ind):-1:(ind + 1)
-            @info "recalculating rightenv $j"
             above = isnothing(cache.above) ? ψ.AR[j] : cache.above.AR[j]
-            @assert norm(cache.rightenvs[j + 1]) > 1e-12
             cache.rightenvs[j] =
                 TransferMatrix(above, cache.opp[j], ψ.AR[j]) * cache.rightenvs[j + 1]
-            @assert norm(cache.rightenvs[j]) > 1e-12
             cache.rdependencies[j] = ψ.AR[j]
         end
     end
@@ -139,9 +131,7 @@ function leftenv(cache::FinEnv, ind, ψ)
 
     if !isnothing(a) # we need to recalculate
         for j in a:(ind - 1)
-            @info "recalculating leftenv $j"
             above = isnothing(cache.above) ? ψ.AL[j] : cache.above.AL[j]
-            @assert norm(cache.leftenvs[j]) > 1e-12
             cache.leftenvs[j + 1] =
                 cache.leftenvs[j] * TransferMatrix(above, cache.opp[j], ψ.AL[j])
             cache.ldependencies[j] = ψ.AL[j]
