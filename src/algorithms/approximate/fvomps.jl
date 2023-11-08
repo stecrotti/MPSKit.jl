@@ -13,42 +13,42 @@ function approximate!(
     alg::DMRG2,
     envs=[environments(init, sq) for sq in squash],
 )
-    tol = alg.tol
-    maxiter = alg.maxiter
-    iter = 0
-    delta = 2 * tol
+    t₀ = Base.time_ns()
+    ϵ::Float64 = 2 * alg.tol
+    for iter in 1:(alg.maxiter)
+        ϵ = 0.0
+        Δt = @elapsed begin
+            for pos in [1:(length(init) - 1); (length(init) - 2):-1:1]
+                ac2 = init.AC[pos] * _transpose_tail(init.AR[pos + 1])
 
-    while iter < maxiter && delta > tol
-        delta = 0.0
+                nac2 = sum(
+                    map(zip(squash, envs)) do (sq, pr)
+                        ac2_proj(pos, init, pr)
+                    end,
+                )
 
-        (init, envs) =
-            alg.finalize(iter, init, squash, envs)::Tuple{typeof(init),typeof(envs)}
+                (al, c, ar) = tsvd!(nac2; trunc=alg.trscheme)
 
-        for pos in [1:(length(init) - 1); (length(init) - 2):-1:1]
-            ac2 = init.AC[pos] * _transpose_tail(init.AR[pos + 1])
+                ϵ = max(ϵ, norm(al * c * ar - ac2) / norm(ac2))
 
-            nac2 = sum(
-                map(zip(squash, envs)) do (sq, pr)
-                    ac2_proj(pos, init, pr)
-                end,
-            )
-
-            (al, c, ar) = tsvd(nac2; trunc=alg.trscheme)
-
-            delta = max(delta, norm(al * c * ar - ac2) / norm(ac2))
-
-            init.AC[pos] = (al, complex(c))
-            init.AC[pos + 1] = (complex(c), _transpose_front(ar))
+                init.AC[pos] = (al, complex(c))
+                init.AC[pos + 1] = (complex(c), _transpose_front(ar))
+            end
+            
+            
+            init, envs =
+                alg.finalize(iter, init, squash, envs)::Tuple{typeof(init),typeof(envs)}
         end
-
-        alg.verbose && @info "2site dmrg iter $(iter) error $(delta)"
-
-        #finalize
-        iter += 1
+    
+        alg.verbose && @info "DMRG2 iteration:" iter ϵ Δt
+        ϵ <= alg.tol && break
+        
+        iter == alg.maxiter && @warn "DMRG2 maximum iterations" iter ϵ
     end
-
-    delta > tol && @warn "2site dmrg failed to converge $(delta)>$(tol)"
-    return init, envs, delta
+    
+    Δt = (Base.time_ns() - t₀) / 1.0e9
+    alg.verbose && @info "DMRG summary:" ϵ Δt
+    return init, envs, ϵ
 end
 
 function approximate!(
@@ -57,35 +57,32 @@ function approximate!(
     alg::DMRG,
     envs=[environments(init, sq) for sq in squash],
 )
-    tol = alg.tol
-    maxiter = alg.maxiter
-    iter = 0
-    delta = 2 * tol
+    t₀ = Base.time_ns()
+    ϵ::Float64 = 2 * alg.tol
+    for iter in 1:(alg.maxiter)
+        ϵ = 0.0
+        Δt = @elapsed begin
+            for pos in [1:(length(init) - 1); length(init):-1:2]
+                newac = sum(
+                    map(zip(squash, envs)) do (sq, pr)
+                        ac_proj(pos, init, pr)
+                    end,
+                )
 
-    while iter < maxiter && delta > tol
-        delta = 0.0
-
-        #finalize
-        (init, envs) =
-            alg.finalize(iter, init, squash, envs)::Tuple{typeof(init),typeof(envs)}
-
-        for pos in [1:(length(init) - 1); length(init):-1:2]
-            newac = sum(
-                map(zip(squash, envs)) do (sq, pr)
-                    ac_proj(pos, init, pr)
-                end,
-            )
-
-            delta = max(delta, norm(newac - init.AC[pos]) / norm(newac))
-
-            init.AC[pos] = newac
+                ϵ = max(ϵ, norm(newac - init.AC[pos]) / norm(newac))
+                init.AC[pos] = newac
+            end
+            init, envs =
+                alg.finalize(iter, init, squash, envs)::Tuple{typeof(init),typeof(envs)}
         end
+        
+        alg.verbose && @info "DMRG iteration:" iter ϵ Δt
 
-        alg.verbose && @info "dmrg iter $(iter) error $(delta)"
-
-        iter += 1
+        ϵ <= alg.tol && break
+        iter == alg.maxiter && @warn "DMRG maximum iterations" iter ϵ
     end
-
-    delta > tol && @warn "dmrg failed to converge $(delta)>$(tol)"
-    return init, envs, delta
+    
+    Δt = (Base.time_ns() - t₀) / 1.0e9
+    alg.verbose && @info "DMRG summary:" ϵ Δt
+    return init, envs, ϵ
 end

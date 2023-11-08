@@ -24,7 +24,7 @@ function find_groundstate!(Ψ::AbstractFiniteMPS, H, alg::DMRG, envs=environment
     ϵ::Float64 = 2 * alg.tol
 
     for iter in 1:(alg.maxiter)
-        global ϵ = 0.0
+        ϵ = 0.0
         Δt = @elapsed begin
             for pos in [1:(length(Ψ) - 1); length(Ψ):-1:2]
                 h = ∂∂AC(pos, Ψ, H, envs)
