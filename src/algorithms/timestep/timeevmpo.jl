@@ -5,13 +5,17 @@
     maxiter::Int = Defaults.maxiter
 end
 
-struct TaylorCluster{N} <: Algorithm end
+@kwdef struct TaylorCluster <: Algorithm
+    N::Int = 2
+    extension::Bool = true
+    compression::Bool = true
+end
 
-const WI = TaylorCluster{1}
+const WI = TaylorCluster(; N=1, extension=false, compression=false)
 
-function make_time_mpo(H′::MPOHamiltonian, dt::Number, ::TaylorCluster{N}) where {N}
+function make_time_mpo(H::MPOHamiltonian, dt::Number, alg::TaylorCluster)
+    N = alg.N
     τ = -1im * dt
-    H = deepcopy(H′)
     # start with H^N
     H_n = H^N
     linds = LinearIndices(ntuple(i -> virtualdim(H), N))
@@ -20,218 +24,90 @@ function make_time_mpo(H′::MPOHamiltonian, dt::Number, ::TaylorCluster{N}) whe
     # extension step: Algorithm 3
     # incorporate higher order terms
     # TODO: don't need to fully construct H_next...
-    # H_next = H_n * H
-    # linds_next = LinearIndices(ntuple(i -> virtualdim(H), N + 1))
-    # for (i, slice) in enumerate(H_n.data)
-    #     for a in cinds, b in cinds
-    #         all(>(1), b.I) || continue
-    #         all(in((1, virtualdim(H))), a.I) && any(==(virtualdim(H)), a.I) && continue
-            
-    #         n1 = count(==(1), a.I) + 1
-    #         n3 = count(==(virtualdim(H)), b.I) + 1
-    #         factor = τ * factorial(N) / (factorial(N + 1) * n1 * n3)
-            
-    #         for c in 1:N+1, d in 1:N+1
-    #             aₑ = insert!([a.I...], c, 1)
-    #             bₑ = insert!([b.I...], d, virtualdim(H))
+    if alg.extension
+        H_next = H_n * H
+        linds_next = LinearIndices(ntuple(i -> virtualdim(H), N + 1))
+        for (i, slice) in enumerate(H_n.data)
+            for a in cinds, b in cinds
+                all(>(1), b.I) || continue
+                all(in((1, virtualdim(H))), a.I) && any(==(virtualdim(H)), a.I) && continue
                 
-    #             # TODO: use VectorInterface for memory efficiency
-    #             slice[linds[a], 1, 1, linds[b]] += factor * H_next[i][linds_next[aₑ...], 1, 1, linds_next[bₑ...]]
-    #         end
-    #     end
-    # end
+                n1 = count(==(1), a.I) + 1
+                n3 = count(==(virtualdim(H)), b.I) + 1
+                factor = τ * factorial(N) / (factorial(N + 1) * n1 * n3)
+                
+                for c in 1:N+1, d in 1:N+1
+                    aₑ = insert!([a.I...], c, 1)
+                    bₑ = insert!([b.I...], d, virtualdim(H))
+                    
+                    # TODO: use VectorInterface for memory efficiency
+                    slice[linds[a], 1, 1, linds[b]] += factor * H_next[i][linds_next[aₑ...], 1, 1, linds_next[bₑ...]]
+                end
+            end
+        end
+    end
     
     # loopback step: Algorithm 1
     # constructing the Nth order time evolution MPO
     mpo = convert(SparseMPO, H_n)
-    @show mpo[1]
     for slice in mpo.data
         for b in cinds[2:end]
             all(in((1, virtualdim(H))), b.I) || continue
             
-            @show b_lin = linds[b]
+            b_lin = linds[b]
             a = count(==(virtualdim(H)), b.I)
             factor = τ^a * factorial(N - a) / factorial(N)
             slice[:, 1, 1, 1] = slice[:, 1, 1, 1] + factor * slice[:, 1, 1, b_lin]
             for I in BlockTensorKit.nonzero_keys(slice)
-                (I[1] == b_lin || I[4] == b_lin) && delete!(parent(parent(slice)).data, I)
+                (I[1] == b_lin || I[4] == b_lin) && delete!(slice, I)
             end
         end
     end
-    @show mpo[1]
-    # # Remove equivalent rows and columns: Algorithm 2
-    # for slice in mpo.data
-    #     for c in cinds
-    #         c_lin = linds[c]
-    #         s_c = CartesianIndex(sort(c.I, by=(!=(1))))
-    #         s_r = CartesianIndex(sort(c.I, by=(!=(virtualdim(H)))))
-            
-    #         n1 = count(==(1), c.I)
-    #         n3 = count(==(virtualdim(H)), c.I)
-            
-    #         if n3 <= n1 && s_c != c
-    #             slice[linds[s_c], 1, 1, :] += slice[c_lin, 1, 1, :]
-    #             for I in BlockTensorKit.nonzero_keys(slice)
-    #                 (I[1] == c_lin || I[4] == c_lin) && delete!(parent(parent(slice)).data, I)
-    #             end
-    #         elseif n3 > n1 && s_r != c
-    #             slice[:, 1, 1, linds[s_r]] += slice[:, 1, 1, c_lin]
-    #             for I in BlockTensorKit.nonzero_keys(slice)
-    #                 (I[1] == c_lin || I[4] == c_lin) && delete!(parent(parent(slice)).data, I)
-    #             end
-    #         end
-    #     end
-    # end
-    # @show norm.(BlockTensorKit.nonzero_values(mpo[1]))
-    # # Approximate compression step: Algorithm 4
-    # for slice in mpo.data
-    #     for a in cinds
-    #         all(>(1), a.I) || continue
-    #         a_lin = linds[a]
-    #         n1 = count(==(virtualdim(H)), a.I)
-    #         b = CartesianIndex(replace(a.I, virtualdim(H) => 1))
-    #         b_lin = linds[b]
-    #         factor = τ^n1 * factorial(N - n1) / factorial(N)
-    #         slice[:, 1, 1, b_lin] += factor * slice[:, 1, 1, a_lin]
-            
-    #         for I in BlockTensorKit.nonzero_keys(slice)
-    #             (I[1] == a_lin || I[4] == a_lin) && delete!(parent(parent(slice)).data, I)
-    #         end
-    #     end
-    # end
-    # @show norm.(BlockTensorKit.nonzero_values(mpo[1]))
-    return mpo
-    return remove_orphans!(mpo)
-end
-
     
-    # for slice in mult
-    #     #embed next order in this one - incompatible with approximate compression
-    #     for a in CartesianIndices(inds), b in CartesianIndices(inds), no in 1:1
-    #         t_a = [Tuple(a)...]
-    #         t_b = [Tuple(b)...]
-
-    #         all(x -> x > 1, t_b) || continue
-    #         all(x -> x in (1, th.odim), t_a) && any(x -> x == th.odim, t_a) && continue
-
-    #         n3 = count(x -> x == th.odim, t_b) + no
-    #         n1 = count(x -> x == 1, t_a) + no
-    #         for e_b in interweave(fill(th.odim, no), t_b),
-    #             e_a in interweave(fill(1, no), t_a)
-
-    #             has_prod_elem(slice, e_a, e_b) || continue
-    #             slice[inds[a], inds[b]] +=
-    #                 calc_prod_elem(slice, e_a, e_b) * τ^no * factorial(N) /
-    #                 (factorial(N + no) * n1 * n3)
-    #         end
-    #     end
-
-    #     # apply loopback
-    #     for a in Iterators.product(fill((1, th.odim), N)...)
-    #         all(a .== 1) && continue
-
-    #         order = count(x -> x == th.odim, a)
-    #         c_ind = inds[a...]
-    #         slice[1:(c_ind - 1), 1] .+=
-    #             slice[1:(c_ind - 1), c_ind] .* τ^order * factorial(N - order) / factorial(N)
-    #         slice[c_ind, :] .*= 0
-    #         slice[:, c_ind] .*= 0
-    #     end
-
-    #     # remove equivalent collumns
-    #     for c in CartesianIndices(inds)
-    #         tc = [Tuple(c)...]
-    #         keys = map(x -> x == 1 ? 2 : 1, tc)
-    #         s_tc = tc[sortperm(keys)]
-
-    #         n1 = count(x -> x == 1, tc)
-    #         n3 = count(x -> x == th.odim, tc)
-
-    #         if n1 >= n3 && tc != s_tc
-    #             slice[inds[s_tc...], :] += slice[inds[c], :]
-
-    #             slice[inds[c], :] .*= 0
-    #             slice[:, inds[c]] .*= 0
-    #         end
-    #     end
-
-    #     # remove equivalent rows
-    #     for c in CartesianIndices(inds)
-    #         tc = [Tuple(c)...]
-    #         keys = map(x -> x == th.odim ? 2 : 1, tc)
-    #         s_tc = tc[sortperm(keys)]
-
-    #         n1 = count(x -> x == 1, tc)
-    #         n3 = count(x -> x == th.odim, tc)
-
-    #         if n3 > n1 && tc != s_tc
-    #             slice[:, inds[s_tc...]] += slice[:, inds[c]]
-
-    #             slice[:, inds[c]] .*= 0
-    #             slice[inds[c], :] .*= 0
-    #         end
-    #     end
-    #     # approximate compression
-    #     for c in CartesianIndices(inds)
-    #         tc = [Tuple(c)...]
-
-    #         n = count(x -> x == th.odim, tc)
-    #         all(x -> x > 1, tc) && n > 0 || continue
-
-    #         transformed = map(x -> x == th.odim ? 1 : x, tc)
-
-    #         slice[:, inds[transformed...]] +=
-    #             slice[:, inds[tc...]] * τ^n * factorial(N - n) / factorial(N)
-
-    #         slice[:, inds[tc...]] .*= 0
-    #         slice[inds[tc...], :] .*= 0
-    #     end
-    # end
-
-has_prod_elem(slice, t1, t2) = all(map(x -> contains(slice, x...), zip(t1, t2)))
-function calc_prod_elem(slice, t1, t2)
-    return calc_prod_elem(slice[first(t1), first(t2)], slice, t1[2:end], t2[2:end])
-end
-function calc_prod_elem(o, slice, t1, t2)
-    isempty(t1) && return o
-
-    nel = slice[first(t1), first(t2)]
-    fuse_front = isomorphism(
-        fuse(_firstspace(o) * _firstspace(nel)), _firstspace(o) * _firstspace(nel)
-    )
-    fuse_back = isomorphism(
-        fuse(_lastspace(o)' * _lastspace(nel)'), _lastspace(o)' * _lastspace(nel)'
-    )
-
-    @plansor o[-1 -2; -3 -4] :=
-        fuse_front[-1; 1 2] * o[1 3; -3 4] * nel[2 -2; 3 5] * conj(fuse_back[-4; 4 5])
-
-    return calc_prod_elem(o, slice, t1[2:end], t2[2:end])
-end
-
-function interweave(a, b)
-    map(
-        filter(
-            x -> sum(x .== 1) == length(a) && sum(x .== 2) == length(b),
-            collect(Iterators.product(fill((1, 2), length(a) + length(b))...)),
-        ),
-    ) do key
-        ia = 1
-        ib = 1
-
-        output = Vector{eltype(a)}(undef, length(a) + length(b))
-        for k in key
-            if k == 1
-                el = a[ia]
-                ia += 1
-            else
-                el = b[ib]
-                ib += 1
+    # Remove equivalent rows and columns: Algorithm 2
+    for slice in mpo.data
+        for c in cinds
+            c_lin = linds[c]
+            s_c = CartesianIndex(sort(c.I, by=(!=(1))))
+            s_r = CartesianIndex(sort(c.I, by=(!=(virtualdim(H)))))
+            
+            n1 = count(==(1), c.I)
+            n3 = count(==(virtualdim(H)), c.I)
+            
+            if n3 <= n1 && s_c != c
+                slice[linds[s_c], 1, 1, :] += slice[c_lin, 1, 1, :]
+                for I in BlockTensorKit.nonzero_keys(slice)
+                    (I[1] == c_lin || I[4] == c_lin) && delete!(slice, I)
+                end
+            elseif n3 > n1 && s_r != c
+                slice[:, 1, 1, linds[s_r]] += slice[:, 1, 1, c_lin]
+                for I in BlockTensorKit.nonzero_keys(slice)
+                    (I[1] == c_lin || I[4] == c_lin) && delete!(slice, I)
+                end
             end
-            output[ia + ib - 2] = el
         end
-        output
     end
+    
+    # Approximate compression step: Algorithm 4
+    if alg.compression
+        for slice in mpo.data
+            for a in cinds
+                all(>(1), a.I) || continue
+                a_lin = linds[a]
+                n1 = count(==(virtualdim(H)), a.I)
+                b = CartesianIndex(replace(a.I, virtualdim(H) => 1))
+                b_lin = linds[b]
+                factor = τ^n1 * factorial(N - n1) / factorial(N)
+                slice[:, 1, 1, b_lin] += factor * slice[:, 1, 1, a_lin]
+                
+                for I in BlockTensorKit.nonzero_keys(slice)
+                    (I[1] == a_lin || I[4] == a_lin) && delete!(slice, I)
+                end
+            end
+        end
+    end
+    
+    return remove_orphans!(mpo)
 end
 
 function make_time_mpo(ham::MPOHamiltonian{T}, dt, alg::WII) where {T}
