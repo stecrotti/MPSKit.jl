@@ -99,7 +99,7 @@ function expectation_value_fimpl(
         # first row - terms starting at site i
         # last column - terms ending at site i
         # top right - single site terms
-        @info "computing $i"
+        # @info "computing $i"
         exp_density[i] =
             (
                 contract_expval(
