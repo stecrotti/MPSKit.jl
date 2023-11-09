@@ -17,6 +17,10 @@ const SparseMPO{S,T} = InfiniteMPO{T} where {S,T<:SparseMPOTensor{S}}
 
 VectorInterface.scalartype(::Type{<:InfiniteMPO{T}}) where {T} = scalartype(T)
 
+
+left_virtualspace(O::InfiniteMPO, i::Int) = left_virtualspace(O[i])
+right_virtualspace(O::InfiniteMPO, i::Int) = right_virtualspace(O[i])
+
 left_virtualdim(O::SparseMPO, i::Int) = size(O[i], 1)
 right_virtualdim(O::SparseMPO, i::Int) = size(O[i], 4)
 

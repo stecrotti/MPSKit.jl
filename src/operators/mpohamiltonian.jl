@@ -58,96 +58,10 @@ end
 
 Base.parent(H::MPOHamiltonian) = H.data
 
-function Base.show(io::IO, ::MIME"text/plain", H::Union{MPOHamiltonian,SparseMPO})
+function Base.show(io::IO, H::Union{MPOHamiltonian,SparseMPO})
     typestr = H isa MPOHamiltonian ? "MPOHamiltonian" : "SparseMPO"
-    println(io, "$(length(H))-periodic $(typestr){$(spacetype(H))}:")
-    for (i, W) in enumerate(H)
-        println(io, " W[$i] = ")
-        println(W)
-        # W′ = reshape(parent(W), size(W, 1), size(W, 4))
-        # if max(size(W)...) <= 16
-        #     _print_jordanmpo(io, W)
-        # else
-        #     _print_braille(io, W)
-        # end
-        
-    end
-end
-
-function _print_jordanmpo(io, W)
-    print_str = fill('.', (size(W, 1), size(W, 4)))
-    for (j, O) in BlockTensorKit.nonzero_pairs(W)
-        if O isa TensorKit.BraidingTensor
-            print_str[j] = 'τ'
-        elseif j[1] == 1 && j[4] == size(W, 4)
-            print_str[j] = 'D'
-        elseif j[1] == 1
-            print_str[j] = 'C'
-        elseif j[4] == size(W, 4)
-            print_str[j] = 'B'
-        else
-            print_str[j] = 'A'
-        end
-    end
-    for (j, row) in enumerate(eachrow(reshape(print_str, size(W, 1), size(W, 4))))
-        start = j == 1 ? "┌" : j == size(W, 1) ? "└" : "│"
-        stop = j == 1 ? "┐" : j == size(W, 1) ? "┘" : "│"
-        println(io, start, join(row, ' '), stop)
-    end
-end
-
-# adapted from SparseArrays.jl
-const brailleBlocks = UInt16['⠁', '⠂', '⠄', '⡀', '⠈', '⠐', '⠠', '⢀']
-function _print_braille(io, W)
-    m, n = size(W)
-    
-    # The maximal number of characters we allow to display the matrix
-    local maxHeight::Int, maxWidth::Int
-    maxHeight = displaysize(io)[1] - 4 # -4 from [Prompt, header, newline after elements, new prompt]
-    maxWidth = displaysize(io)[2] ÷ 2
-    
-    if get(io, :limit, true) && (m > 4maxHeight || n > 2maxWidth)
-        s = min(2maxWidth / n, 4maxHeight / m)
-        scaleHeight = floor(Int, s * m)
-        scaleWidth = floor(Int, s * n)
-    else
-        scaleHeight = m
-        scaleWidth = n
-    end
-    
-    # Make sure that the matrix size is big enough to be able to display all
-    # the corner border characters
-    if scaleHeight < 8
-        scaleHeight = 8
-    end
-    if scaleWidth < 4
-        scaleWidth = 4
-    end
-    
-    brailleGrid = fill(UInt16(10240), (scaleWidth - 1) ÷ 2 + 4, (scaleHeight - 1) ÷ 4 + 1)
-    brailleGrid[1,:] .= '⎢'
-    brailleGrid[end-1,:] .= '⎥'
-    brailleGrid[1,1] = '⎡'
-    brailleGrid[1,end] = '⎣'
-    brailleGrid[end-1,1] = '⎤'
-    brailleGrid[end-1,end] = '⎦'
-    brailleGrid[end, :] .= '\n'
-
-    rowscale = max(1, scaleHeight - 1) / max(1, m - 1)
-    colscale = max(1, scaleWidth - 1) / max(1, n - 1)
-    
-    for I in BlockTensorKit.nonzero_keys(W)
-        si = round(Int, (I[1] - 1) * rowscale + 1)
-        sj = round(Int, (I[2] - 1) * colscale + 1)
-        
-        k = (sj - 1) ÷ 2 + 2
-        l = (si - 1) ÷ 4 + 1
-        p = ((sj - 1) % 2) * 4 + ((si - 1) % 4 + 1)
-
-        brailleGrid[k, l] |= brailleBlocks[p]
-    end
-    
-    foreach(c -> print(io, Char(c)), @view brailleGrid[1:end-1])
+    println(io, "$(length(H))-periodic $(typestr):")
+    foreach(((i, W),) -> println(io, " W[$i] = ", W), enumerate(H.data))
     return nothing
 end
 
