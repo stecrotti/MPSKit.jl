@@ -27,6 +27,7 @@ MPOHamiltonian(data::AbstractVector{T}) where {T} = MPOHamiltonian{T}(data)
 # BlockTensorKit.blocktype(::MPOHamiltonian{T}) where {T} = blocktype(T)
 
 physicalspace(H::MPOHamiltonian, i::Int) = physicalspace(H[i])
+physicalspace(H::MPOHamiltonian) = mapfoldl(only ∘ physicalspace, ⊗, H.data)
 
 function MPOHamiltonian(t::TensorMap{S,N,N}) where {S,N}
     V₀ = oneunit(S)
@@ -58,9 +59,12 @@ end
 
 Base.parent(H::MPOHamiltonian) = H.data
 
-function Base.show(io::IO, H::Union{MPOHamiltonian,SparseMPO})
+function Base.show(io::IO, ::MIME"text/plain", H::Union{MPOHamiltonian,SparseMPO})
     typestr = H isa MPOHamiltonian ? "MPOHamiltonian" : "SparseMPO"
-    println(io, "$(length(H))-periodic $(typestr):")
+    print(io, "$(length(H))-periodic $(typestr):")
+    print(io, " ⋯ ")
+    join(io, physicalspace(H), " ⊗ ")
+    println(io, " ⋯")
     foreach(((i, W),) -> println(io, " W[$i] = ", W), enumerate(H.data))
     return nothing
 end
@@ -74,7 +78,7 @@ virtualdim(H::MPOHamiltonian) = length(left_virtualspace(H, 1))
 period(H::MPOHamiltonian) = length(H.data)
 
 #default constructor
-MPOHamiltonian(x::AbstractArray{<:Any,3}) = MPOHamiltonian(SparseMPO(x))
+MPOHamiltonian(x::AbstractArray{<:Any,3}) = MPOHamiltonian(SparseMPO(x).data)
 
 #allow passing in regular tensormaps
 # MPOHamiltonian(t::TensorMap) = MPOHamiltonian(decompose_localmpo(add_util_leg(t)));

@@ -223,18 +223,31 @@ function SparseMPO(x::AbstractArray{Union{E,M},3}) where {M<:MPOTensor,E<:Number
     ndomspaces = PeriodicArray{Sp}(domspaces)
     npspaces = PeriodicArray{Sp}(pspaces)
 
+    τtype = TensorKit.BraidingTensor{Sp,TensorKit.storagetype(M)}
+    ttype = Union{M,τtype}
+    
     blockt = map(1:period) do i
         P = SumSpace(npspaces[i])
         Vₗ = SumSpace(ndomspaces[i, :]...)
         Vᵣ = SumSpace(ndomspaces[mod1(i + 1, period), :]...)
-        tdst = SparseMPOTensor(BlockTensorMap(undef_blocks, SparseArray{M,4}, Vₗ ⊗ P, P ⊗ Vᵣ))
+        tdst = BlockTensorMap{Sp,2,2,ttype}(undef, Vₗ ⊗ P, P ⊗ Vᵣ)
         for j in axes(x, 2), k in axes(x, 3)
-            tdst[j, 1, 1, k] = x[i, j, k]
+            if x[i, j, k] isa E
+                iszero(x[i, j, k]) && continue
+                τ = τtype(domain(BlockTensorKit.getsubspace(space(tdst), j, 1, 1, k))...)
+                if isone(x[i, j, k])
+                    tdst[j, 1, 1, k] = τ
+                else
+                    tdst[j, 1, 1, k] = scale!(τ, x[i, j, k])
+                end
+            else
+                tdst[j, 1, 1, k] = x[i, j, k]
+            end
         end
         return tdst
     end
     
-    return SparseMPO{Sp,M,E}(PeriodicArray(blockt))
+    return InfiniteMPO{eltype(blockt)}(PeriodicArray(blockt))
 end
 
 function _envsetypes(d::Tuple)
