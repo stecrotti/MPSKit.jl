@@ -409,7 +409,7 @@ to compact the representation as much as possible.
 function remove_orphans!(smpo::SparseMPO; tol=eps(real(scalartype(smpo)))^(3/4))
     # drop zeros
     for slice in parent(smpo)
-        for (key, val) in BlockTensorKit.nonzero_pairs(slice)
+        for (key, val) in nonzero_pairs(slice)
             norm(val) < tol && delete!(slice, key)
         end
     end
@@ -422,8 +422,8 @@ function remove_orphans!(smpo::SparseMPO; tol=eps(real(scalartype(smpo)))^(3/4))
         for i in 1:length(smpo)
             # slice empty columns on right or empty rows on left
             mask = filter(1:size(smpo[i], 4)) do j
-                return j ∈ getindex.(BlockTensorKit.nonzero_keys(smpo[i]), 1) ||
-                    j ∈ getindex.(BlockTensorKit.nonzero_keys(smpo[i + 1]), 4)
+                return j ∈ getindex.(nonzero_keys(smpo[i]), 1) ||
+                    j ∈ getindex.(nonzero_keys(smpo[i + 1]), 4)
             end
             changed |= length(mask) == size(smpo[i], 4)
             smpo[i] = smpo[i][:, :, :, mask]
@@ -431,12 +431,12 @@ function remove_orphans!(smpo::SparseMPO; tol=eps(real(scalartype(smpo)))^(3/4))
         end
         
         # for (i, slice) in enumerate(parent(smpo))
-        #     nz_keys = BlockTensorKit.nonzero_keys(slice)
+        #     nz_keys = nonzero_keys(slice)
             
         #     # remove rows of previous site that lead to dead end
         #     setdiff!(zero_cols[i], [x[4] for x in nz_keys])
         #     if !isempty(zero_cols[i])
-        #         for key in BlockTensorKit.nonzero_keys(smpo[i - 1])
+        #         for key in nonzero_keys(smpo[i - 1])
         #             if key[1] ∈ empty_col
         #                 delete!(smpo[i - 1], key)
         #                 changed = true
@@ -447,7 +447,7 @@ function remove_orphans!(smpo::SparseMPO; tol=eps(real(scalartype(smpo)))^(3/4))
         #     # remove cols of next site that come from dead end
         #     empty_rows = setdiff(1:size(slice, 1), [x[1] for x in nz_keys])
         #     if !isempty(empty_rows)
-        #         for key in BlockTensorKit.nonzero_keys(smpo[i + 1])
+        #         for key in nonzero_keys(smpo[i + 1])
         #             if key[4] ∈ empty_row
         #                 delete!(smpo[i + 1], key)
         #                 changed = true

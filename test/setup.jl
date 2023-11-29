@@ -6,7 +6,7 @@ using MPSKit
 using MPSKit: _transpose_tail, _transpose_front, SparseMPOTensor
 using TensorKit, BlockTensorKit
 using TensorKit: PlanarTrivial, ℙ
-using BlockTensorKit: SparseArrayKit
+using BlockTensorKit
 
 # using TensorOperations
 
