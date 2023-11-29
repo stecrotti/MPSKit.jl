@@ -24,7 +24,19 @@ end
 
 MPOHamiltonian(data::AbstractVector{T}) where {T} = MPOHamiltonian{T}(PeriodicArray(data))
 
-# BlockTensorKit.blocktype(::MPOHamiltonian{T}) where {T} = blocktype(T)
+function Base.getproperty(H::MPOHamiltonian, sym::Symbol)
+    if sym === :A
+        return map(h -> h[2:end-1, 1, 1, 2:end-1], H.data)
+    elseif sym === :B
+        return map(h -> h[2:end-1, 1, 1, end], H.data)
+    elseif sym === :C
+        return map(h -> h[1, 1, 1, 2:end-1], H.data)
+    elseif sym === :D
+        return map(h -> h[1, 1, 1, end], H.data)
+    else
+        return getfield(H, sym)
+    end
+end
 
 physicalspace(H::MPOHamiltonian, i::Int) = physicalspace(H[i])
 physicalspace(H::MPOHamiltonian) = mapfoldl(only ∘ physicalspace, ⊗, H.data)
