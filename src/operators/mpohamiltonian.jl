@@ -148,99 +148,128 @@ end
 to be valid in the thermodynamic limit, these hamiltonians need to have a peculiar structure
 "
 function sanitycheck(ham::MPOHamiltonian)
-    for i in 1:(ham.period)
-        @assert isid(ham[i][1, 1])[1]
-        @assert isid(ham[i][ham.odim, ham.odim])[1]
-
-        for j in 1:(ham.odim), k in 1:(j - 1)
-            contains(ham[i], j, k) && return false
+    for i in 1:period(ham)
+        ham[i][1, 1, 1, 1] isa TensorKit.BraidingTensor || return false
+        @assert ham[i][end, 1, 1, end] isa TensorKit.BraidingTensor || return false
+        
+        for j in 1:(left_virtualdim(ham, i)), k in 1:(j - 1)
+            CartesianIndex(j, 1, 1, k) ∈ keys(ham[i]) || return false
         end
     end
-
     return true
 end
 
 #addition / substraction
-Base.:-(a::MPOHamiltonian) = -one(scalartype(a)) * a
-function Base.:+(a::MPOHamiltonian, e::AbstractVector)
-    length(e) == a.period ||
-        throw(ArgumentError("periodicity should match $(a.period) ≠ $(length(e))"))
-
-    nOs = copy(a.data) # we don't want our addition to change different copies of the original hamiltonian
-
-    for c in 1:(a.period)
-        nOs[c][1, end] +=
-            e[c] * isomorphism(
-                storagetype(nOs[c][1, end]),
-                codomain(nOs[c][1, end]),
-                domain(nOs[c][1, end]),
-            )
+Base.:-(H::MPOHamiltonian) = -one(scalartype(H)) * H
+function Base.:+(H::MPOHamiltonian, λs::AbstractVector{<:Number})
+    length(λs) == period(H) ||
+        throw(ArgumentError("periodicity should match $(period(H)) ≠ $(length(λs))"))
+    H′ = copy(H)
+    
+    foreach(H′.data, λs) do h, λ
+        D = h[1, 1, 1, end]
+        h[1, 1, 1, end] = add!(D, isomorphism(storagetype(D), space(D)), λ)
     end
-
-    return MPOHamiltonian(nOs)
+    return H′
 end
+
 Base.:-(e::AbstractVector, a::MPOHamiltonian) = -1.0 * a + e
 Base.:+(e::AbstractVector, a::MPOHamiltonian) = a + e
 Base.:-(a::MPOHamiltonian, e::AbstractVector) = a + (-e)
 
-Base.:+(a::H1, b::H2) where {H1<:MPOHamiltonian,H2<:MPOHamiltonian} = +(promote(a, b)...)
-function Base.:+(a::H, b::H) where {H<:MPOHamiltonian}
-    # this is a bit of a hack because I can't figure out how to make this more specialised
-    # than the fallback which promotes, while still having access to S,T, and E.
-    S, T, E = H.parameters
+# Base.:+(a::H1, b::H2) where {H1<:MPOHamiltonian,H2<:MPOHamiltonian} = +(promote(a, b)...)
+function Base.:+(a::MPOHamiltonian{T}, b::MPOHamiltonian{T}) where {T}
+    period(a) == period(b) ||
+        throw(ArgumentError("periodicity should match $(period(a)) ≠ $(period(b))"))
+    
+    @assert sanitycheck(a) "a is not a valid hamiltonian"
+    @assert sanitycheck(b) "b is not a valid hamiltonian"
 
-    a.period == b.period ||
-        throw(ArgumentError("periodicity should match $(a.period) ≠ $(b.period)"))
-    @assert sanitycheck(a)
-    @assert sanitycheck(b)
-
-    nodim = a.odim + b.odim - 2
-    nOs = PeriodicArray{Union{E,T},3}(fill(zero(E), a.period, nodim, nodim))
-
-    for pos in 1:(a.period)
-        for (i, j) in keys(a[pos])
-            #A block
-            if (i < a.odim && j < a.odim)
-                nOs[pos, i, j] = a[pos][i, j]
-            end
-
-            #right side
-            if (i < a.odim && j == a.odim)
-                nOs[pos, i, nodim] = a[pos][i, j]
-            end
-        end
-
-        for (i, j) in keys(b[pos])
-
-            #upper Bs
-            if (i == 1 && j > 1)
-                if nOs[pos, 1, a.odim + j - 2] isa T
-                    nOs[pos, 1, a.odim + j - 2] += b[pos][i, j]
+    Hnew = map(a.data, b.data) do h1, h2
+        Vₗ₁ = left_virtualspace(h1)
+        Vₗ₂ = left_virtualspace(h2)
+        @assert Vₗ₁[1] == Vₗ₂[1] && Vₗ₁[end] == Vₗ₂[end] "trivial spaces should match"
+        Vₗ = Vₗ₁[1:end-1] ⊕ Vₗ₂[2:end]
+        
+        Vᵣ₁ = right_virtualspace(h1)
+        Vᵣ₂ = right_virtualspace(h2)
+        @assert Vᵣ₁[1] == Vᵣ₂[1] && Vᵣ₁[end] == Vᵣ₂[end] "trivial spaces should match"
+        Vᵣ = Vᵣ₁[1:end-1] ⊕ Vᵣ₂[2:end]
+        
+        Wnew = T(undef, Vₗ ⊗ space(h1, 2), space(h1, 3)' ⊗ Vᵣ')
+        
+        # add blocks from first hamiltonian
+        for (I, O) in nonzero_pairs(h1)
+            if I[1] == 1
+                if I[4] == 1
+                    # 1 block
+                    Wnew[I] = O
+                elseif I[4] == size(h1, 4)
+                    # D block
+                    Wnew[1, 1, 1, end] = O
                 else
-                    nOs[pos, 1, a.odim + j - 2] = b[pos][i, j]
+                    # C block
+                    Wnew[I] = O
                 end
-            end
-
-            #B block
-            if (i > 1 && j > 1)
-                nOs[pos, a.odim + i - 2, a.odim + j - 2] = b[pos][i, j]
+            elseif I[4] == size(h1, 4)
+                if I[1] == size(h1, 1)
+                    # 1 block
+                    Wnew[1, 1, 1, end] = O
+                else
+                    # B block
+                    Wnew[I[1], 1, 1, end] = O
+                end
+            else
+                # A block
+                Wnew[I] = O
             end
         end
+        
+        # add blocks from second hamiltonian
+        for (I, O) in nonzero_pairs(h2)
+            if I[1] == 1
+                if I[4] == 1
+                    # 1 block - already done
+                elseif I[4] == size(h2, 4)
+                    # D block
+                    Wnew[1, 1, 1, end] += O
+                else
+                    # C block
+                    shift = CartesianIndex(0, 0, 0, size(h1, 4) - 2)
+                    Wnew[I + shift] = O
+                end
+            elseif I[4] == size(h2, 4)
+                if I[1] == size(h1, 1)
+                    # 1 block - already done
+                else
+                    # B block
+                    shift = CartesianIndex(size(h1, 1) - 2, 0, 0, size(h1, 4) - 2)
+                    Wnew[I + shift] = O
+                end
+            else
+                # A block
+                shift = CartesianIndex(size(h1, 1) - 2, 0, 0, size(h1, 4) - 2)
+                Wnew[I + shift] = O
+            end
+        end
+        return Wnew
     end
-
-    return MPOHamiltonian{S,T,E}(SparseMPO(nOs))
+    
+    return MPOHamiltonian(Hnew)
 end
+
 Base.:-(a::MPOHamiltonian, b::MPOHamiltonian) = a + (-b)
 
 #multiplication
-Base.:*(b::Number, a::MPOHamiltonian) = a * b
-function Base.:*(a::MPOHamiltonian, b::Number)
-    nOs = copy(a.data)
-
-    for i in 1:(a.period), j in 1:(a.odim - 1)
-        nOs[i][j, a.odim] *= b
+Base.:*(λ::Number, H::MPOHamiltonian) = H * λ
+function Base.:*(H::MPOHamiltonian, λ::Number)
+    Hλ = copy(H)
+    foreach(Hλ.data) do h
+        # multiply scalar with start of every interaction
+        # this avoids double counting
+        rmul!(h[1, 1, 1, :], λ)
     end
-    return MPOHamiltonian(nOs)
+    return Hλ
 end
 
 function Base.:*(a::H1, b::H2) where {H1<:MPOHamiltonian,H2<:MPOHamiltonian}
