@@ -68,14 +68,16 @@ function environments(ψ::FiniteMPS, O::Union{InfiniteMPO,MPOHamiltonian}, top=n
     return envs
 end
 
+
 function environments(
     state::WindowMPS,
-    ham::Union{SparseMPO,MPOHamiltonian,DenseMPO},
+    O::Union{SparseMPO,MPOHamiltonian,DenseMPO},
     above=nothing;
-    lenvs=environments(state.left_gs, ham, above),
-    renvs=environments(state.right_gs, ham, above),
+    lenvs=environments(state.left_gs, O, above),
+    renvs=environments(state.right_gs, O, above),
 )
-    envs = FinEnv(state, ham, above)
+    (O isa MPOHamiltonian && (isnothing(above) || above === state)) || throw(ArgumentError("MPOHamiltonian requires top and bottom states to be equal."))
+    envs = FinEnv(state, O, above)
     
     # left boundary: extract from left_envs
     envs.leftenvs[1] = leftenv(lenvs, 1, state.left_gs)

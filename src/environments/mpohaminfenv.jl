@@ -52,7 +52,8 @@ function gen_lw_rw(st::InfiniteMPS, ham::Union{SparseMPO,MPOHamiltonian})
 end
 
 #randomly initialize envs
-function environments(st::InfiniteMPS, ham::MPOHamiltonian; solver=Defaults.linearsolver)
+function environments(st::InfiniteMPS, ham::MPOHamiltonian, above=nothing; solver=Defaults.linearsolver)
+    (isnothing(above) || above === st) || throw(ArgumentError("MPOHamiltonian requires top and bottom states to be equal."))
     lw, rw = gen_lw_rw(st, ham)
     envs = MPOHamInfEnv(ham, similar(st), solver, lw, rw, ReentrantLock())
     return recalculate!(envs, st)
