@@ -4,8 +4,8 @@ seperates out this bit of logic from effective_excitation_hamiltonian (now more 
 can also - potentially - partially reuse this in other algorithms
 =#
 struct QPEnv{A,B} <: Cache
-    lBs::PeriodicArray{A,2}
-    rBs::PeriodicArray{A,2}
+    lBs::PeriodicVector{A}
+    rBs::PeriodicVector{A}
 
     lenvs::B
     renvs::B
@@ -197,17 +197,17 @@ function environments(
     AR = exci.right_gs.AR
 
     #construct lBE
-    (lBs, rBs) = gen_exci_lw_rw(exci.left_gs, ham, exci.right_gs, space(exci[1], 3))
+    lBs, rBs = gen_exci_lw_rw(exci.left_gs, ham, exci.right_gs, space(exci[1], 3))
 
     for pos in 1:(length(exci) - 1)
-        lBs[:, pos + 1] = lBs[:, pos] * TransferMatrix(AR[pos], ham[pos], AL[pos])
-        lBs[:, pos + 1] +=
+        lBs[pos + 1] = lBs[pos] * TransferMatrix(AR[pos], ham[pos], AL[pos])
+        lBs[pos + 1] +=
             leftenv(lenvs, pos, exci.left_gs) * TransferMatrix(exci[pos], ham[pos], AL[pos])
     end
 
     for pos in length(exci):-1:2
-        rBs[:, pos - 1] = TransferMatrix(AL[pos], ham[pos], AR[pos]) * rBs[:, pos]
-        rBs[:, pos - 1] +=
+        rBs[pos - 1] = TransferMatrix(AL[pos], ham[pos], AR[pos]) * rBs[pos]
+        rBs[pos - 1] +=
             TransferMatrix(exci[pos], ham[pos], AR[pos]) *
             rightenv(renvs, pos, exci.right_gs)
     end

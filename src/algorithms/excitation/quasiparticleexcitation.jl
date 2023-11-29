@@ -334,50 +334,38 @@ function effective_excitation_hamiltonian(
     #do necessary contractions
     for i in 1:length(exci)
         T = zero(Bs[i])
-
-        for (j, k) in keys(H[i])
+        
+        @plansor T[-1 -2; -3 -4] += leftenv(envs.lenvs, i, exci.left_gs)[-1 5; 4] * Bs[i][4 2; -3 1] * H[i][5 -2; 2 3] * rightenv(envs.renvs, i, exci.right_gs)[1 3; -4]
+        
+        # <B|H|B>-<H>
+        en = @plansor conj(exci.left_gs.AC[i][2 6; 4]) *
+            leftenv(envs.lenvs, i, exci.left_gs)[2 5; 3] *
+            exci.left_gs.AC[i][3 7; 1] *
+            H[i][5 6; 7 8] *
+            rightenv(envs.lenvs, i, exci.left_gs)[1 8; 4]
+        if !exci.trivial
+            en += @plansor conj(exci.right_gs.AC[i][2 6; 4]) *
+                leftenv(envs.renvs, i, exci.right_gs)[2 5; 3] *
+                exci.right_gs.AC[i][3 7; 1] *
+                H[i][5 6; 7 8] *
+                rightenv(envs.renvs, i, exci.right_gs)[1 8; 4]
+            en /= 2
+        end
+        T -= Bs[i] * en
+        
+        if i > 1 || exci isa InfiniteQP
             @plansor T[-1 -2; -3 -4] +=
-                leftenv(envs.lenvs, i, exci.left_gs)[j][-1 5; 4] *
-                Bs[i][4 2; -3 1] *
-                H[i][j, k][5 -2; 2 3] *
-                rightenv(envs.renvs, i, exci.right_gs)[k][1 3; -4]
-
-            # <B|H|B>-<H>
-            en = @plansor conj(exci.left_gs.AC[i][2 6; 4]) *
-                leftenv(envs.lenvs, i, exci.left_gs)[j][2 5; 3] *
-                exci.left_gs.AC[i][3 7; 1] *
-                H[i][j, k][5 6; 7 8] *
-                rightenv(envs.lenvs, i, exci.left_gs)[k][1 8; 4]
-            if !exci.trivial
-                en += @plansor conj(exci.right_gs.AC[i][2 6; 4]) *
-                    leftenv(envs.renvs, i, exci.right_gs)[j][2 5; 3] *
-                    exci.right_gs.AC[i][3 7; 1] *
-                    H[i][j, k][5 6; 7 8] *
-                    rightenv(envs.renvs, i, exci.right_gs)[k][1 8; 4]
-                en /= 2
-            end
-
-            T -= Bs[i] * en
-            if i > 1 || exci isa InfiniteQP
-                @plansor T[-1 -2; -3 -4] +=
-                    envs.lBs[j, i][-1 4; -3 5] *
-                    exci.right_gs.AR[i][5 2; 1] *
-                    H[i][j, k][4 -2; 2 3] *
-                    rightenv(envs.renvs, i, exci.right_gs)[k][
-                        1 3
-                        -4
-                    ]
-            end
-            if i < length(exci.left_gs) || exci isa InfiniteQP
-                @plansor T[-1 -2; -3 -4] +=
-                    leftenv(envs.lenvs, i, exci.left_gs)[j][
-                        -1 2
-                        1
-                    ] *
-                    exci.left_gs.AL[i][1 3; 4] *
-                    H[i][j, k][2 -2; 3 5] *
-                    envs.rBs[k, i][4 5; -3 -4]
-            end
+                envs.lBs[i][-1 4; -3 5] *
+                exci.right_gs.AR[i][5 2; 1] *
+                H[i][4 -2; 2 3] *
+                rightenv(envs.renvs, i, exci.right_gs)[1 3; -4]
+        end
+        if i < length(exci.left_gs) || exci isa InfiniteQP
+            @plansor T[-1 -2; -3 -4] +=
+                leftenv(envs.lenvs, i, exci.left_gs)[-1 2; 1] *
+                exci.left_gs.AL[i][1 3; 4] *
+                H[i][2 -2; 3 5] *
+                envs.rBs[i][4 5; -3 -4]
         end
 
         toret[i] = T
