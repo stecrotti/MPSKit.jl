@@ -2,7 +2,7 @@ module MPSKit
 
 using TensorKit, TensorOperations
 using TensorOperations: TupleTools
-using BlockTensorKit, SparseArrayKit
+using BlockTensorKit
 using KrylovKit, OptimKit, FastClosures
 using Base.Threads, FLoops, Transducers, FoldsThreads
 using Base.Iterators
