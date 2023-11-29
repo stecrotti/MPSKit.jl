@@ -111,63 +111,67 @@ function make_time_mpo(H::MPOHamiltonian, dt::Number, alg::TaylorCluster)
 end
 
 function make_time_mpo(ham::MPOHamiltonian{T}, dt, alg::WII) where {T}
-    WA = PeriodicArray{T,3}(undef, ham.period, ham.odim - 2, ham.odim - 2)
-    WB = PeriodicArray{T,2}(undef, ham.period, ham.odim - 2)
-    WC = PeriodicArray{T,2}(undef, ham.period, ham.odim - 2)
-    WD = PeriodicArray{T,1}(undef, ham.period)
+    WA = ham.A
+    WB = ham.B
+    WC = ham.C
+    WD = ham.D
 
     δ = dt * (-1im)
+    Wnew = map(1:period(ham)) do i
+        for j in 2:(left_virtualdim(ham, i) - 1), k in 2:(right_virtualdim(ham, i) - 1)
+            init_1 = isometry(storagetype(WD[i]), codomain(WD[i]), domain(WD[i]))
+            init = [init_1, zero(ham[i][1, 1, 1, k]), zero(ham[i][j, 1, 1, end]), zero(ham[i][j, 1, 1, k])]
+            
 
-    for i in 1:(ham.period), j in 2:(ham.odim - 1), k in 2:(ham.odim - 1)
-        init_1 = isometry(
-            storagetype(ham[i][1, ham.odim]),
-            codomain(ham[i][1, ham.odim]),
-            domain(ham[i][1, ham.odim]),
-        )
-        init = [init_1, zero(ham[i][1, k]), zero(ham[i][j, ham.odim]), zero(ham[i][j, k])]
+            y, convhist = exponentiate(
+                1.0, RecursiveVec(init), Arnoldi(; tol=alg.tol, maxiter=alg.maxiter)
+            ) do x
+                out = similar(x.vecs)
 
-        (y, convhist) = exponentiate(
-            1.0, RecursiveVec(init), Arnoldi(; tol=alg.tol, maxiter=alg.maxiter)
-        ) do x
-            out = similar(x.vecs)
+                @plansor out[1][-1 -2; -3 -4] :=
+                    δ * x[1][-1 1; -3 -4] * ham[i][1, 1, 1, end][2 3; 1 4] * τ[-2 4; 2 3]
 
-            @plansor out[1][-1 -2; -3 -4] :=
-                δ * x[1][-1 1; -3 -4] * ham[i][1, ham.odim][2 3; 1 4] * τ[-2 4; 2 3]
+                @plansor out[2][-1 -2; -3 -4] :=
+                    δ * x[2][-1 1; -3 -4] * ham[i][1, 1, 1, end][2 3; 1 4] * τ[-2 4; 2 3]
+                @plansor out[2][-1 -2; -3 -4] +=
+                    sqrt(δ) * x[1][1 2; -3 4] * ham[i][1, 1, 1, k][-1 -2; 3 -4] * τ[3 4; 1 2]
 
-            @plansor out[2][-1 -2; -3 -4] :=
-                δ * x[2][-1 1; -3 -4] * ham[i][1, ham.odim][2 3; 1 4] * τ[-2 4; 2 3]
-            @plansor out[2][-1 -2; -3 -4] +=
-                sqrt(δ) * x[1][1 2; -3 4] * ham[i][1, k][-1 -2; 3 -4] * τ[3 4; 1 2]
+                @plansor out[3][-1 -2; -3 -4] :=
+                    δ * x[3][-1 1; -3 -4] * ham[i][1, 1, 1, end][2 3; 1 4] * τ[-2 4; 2 3]
+                @plansor out[3][-1 -2; -3 -4] +=
+                    sqrt(δ) * x[1][1 2; -3 4] * ham[i][j, 1, 1, end][-1 -2; 3 -4] * τ[3 4; 1 2]
 
-            @plansor out[3][-1 -2; -3 -4] :=
-                δ * x[3][-1 1; -3 -4] * ham[i][1, ham.odim][2 3; 1 4] * τ[-2 4; 2 3]
-            @plansor out[3][-1 -2; -3 -4] +=
-                sqrt(δ) * x[1][1 2; -3 4] * ham[i][j, ham.odim][-1 -2; 3 -4] * τ[3 4; 1 2]
+                @plansor out[4][-1 -2; -3 -4] :=
+                    δ * x[4][-1 1; -3 -4] * ham[i][1, 1, 1, end][2 3; 1 4] * τ[-2 4; 2 3]
+                @plansor out[4][-1 -2; -3 -4] +=
+                    x[1][1 2; -3 4] * ham[i][j, 1, 1, k][-1 -2; 3 -4] * τ[3 4; 1 2]
+                @plansor out[4][-1 -2; -3 -4] +=
+                    sqrt(δ) * x[2][1 2; -3 -4] * ham[i][j, 1, 1, end][-1 -2; 3 4] * τ[3 4; 1 2]
+                @plansor out[4][-1 -2; -3 -4] +=
+                    sqrt(δ) * x[3][-1 4; -3 3] * ham[i][1, 1, 1, k][2 -2; 1 -4] * τ[3 4; 1 2]
 
-            @plansor out[4][-1 -2; -3 -4] :=
-                δ * x[4][-1 1; -3 -4] * ham[i][1, ham.odim][2 3; 1 4] * τ[-2 4; 2 3]
-            @plansor out[4][-1 -2; -3 -4] +=
-                x[1][1 2; -3 4] * ham[i][j, k][-1 -2; 3 -4] * τ[3 4; 1 2]
-            @plansor out[4][-1 -2; -3 -4] +=
-                sqrt(δ) * x[2][1 2; -3 -4] * ham[i][j, ham.odim][-1 -2; 3 4] * τ[3 4; 1 2]
-            @plansor out[4][-1 -2; -3 -4] +=
-                sqrt(δ) * x[3][-1 4; -3 3] * ham[i][1, k][2 -2; 1 -4] * τ[3 4; 1 2]
+                RecursiveVec(out)
+            end
+            convhist.converged == 0 && @warn "failed to exponentiate $(convhist.normres)"
 
-            RecursiveVec(out)
+            WA[i][j - 1, 1, 1, k - 1] = y[4]
+            WB[i][j - 1, 1, 1, 1] = y[3]
+            WC[i][1, 1, 1, k - 1] = y[2]
+            WD[i] = y[1]
         end
-        convhist.converged == 0 && @warn "failed to exponentiate $(convhist.normres)"
-
-        WA[i, j - 1, k - 1] = y[4]
-        WB[i, j - 1] = y[3]
-        WC[i, k - 1] = y[2]
-        WD[i] = y[1]
+        
+        Vₗ = left_virtualspace(ham, i)[1:end-1]
+        Vᵣ = right_virtualspace(ham, i)[1:end-1]
+        P = physicalspace(ham, i)
+        
+        h′ = T(undef, Vₗ ⊗ P ← P ⊗ Vᵣ')
+        h′[2:end, 1, 1, 2:end] = WA[i]
+        h′[2:end, 1, 1, 1] = WB[i]
+        h′[1, 1, 1, 2:end] = WC[i]
+        h′[1, 1, 1, 1] = WD[i]
+        
+        return h′
     end
 
-    W2 = PeriodicArray{Union{T,Missing},3}(missing, ham.period, ham.odim - 1, ham.odim - 1)
-    W2[:, 2:end, 2:end] = WA
-    W2[:, 2:end, 1] = WB
-    W2[:, 1, 2:end] = WC
-    W2[:, 1, 1] = WD
-
-    return SparseMPO(W2)
+    return InfiniteMPO{T}(PeriodicArray(Wnew))
 end
