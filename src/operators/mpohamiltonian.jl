@@ -9,7 +9,7 @@
 
 struct MPOHamiltonian{T<:SparseMPOTensor} <: AbstractMPO
     data::PeriodicVector{T}
-    function MPOHamiltonian{T}(data::AbstractVector{T}) where {T<:SparseMPOTensor}
+    function MPOHamiltonian{T}(data::PeriodicVector{T}) where {T<:SparseMPOTensor}
         for i in eachindex(data)
             Vₗ = left_virtualspace(data[i])
             Vᵣ = dual(right_virtualspace(data[i - 1]))
@@ -18,11 +18,11 @@ struct MPOHamiltonian{T<:SparseMPOTensor} <: AbstractMPO
             space(data[i], 2) == dual(space(data[i], 3)) ||
                 throw(TensorKit.SpaceMismatch("Incompatible physical spaces at $i"))
         end
-        return new{T}(convert(PeriodicArray, data))
+        return new{T}(data)
     end
 end
 
-MPOHamiltonian(data::AbstractVector{T}) where {T} = MPOHamiltonian{T}(data)
+MPOHamiltonian(data::AbstractVector{T}) where {T} = MPOHamiltonian{T}(PeriodicArray(data))
 
 # BlockTensorKit.blocktype(::MPOHamiltonian{T}) where {T} = blocktype(T)
 
