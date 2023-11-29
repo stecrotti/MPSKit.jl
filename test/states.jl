@@ -148,51 +148,49 @@ end
     @test e2[2] ≈ e3[2] atol = 1e-4
 end
 
-@testset "Quasiparticle state" verbose = true begin
-    @testset "Finite" verbose = true for (th, D, d) in [
-        (force_planar(transverse_field_ising()), ℂ^10, ℂ^2),
-        (heisenberg_XXX(SU2Irrep; spin=1), Rep[SU₂](1 => 1, 0 => 3), Rep[SU₂](1 => 1)),
-    ]
-        ts = FiniteMPS(rand, ComplexF64, rand(4:20), d, D)
-        normalize!(ts)
+@testset "Finite Quasiparticle state" verbose = true for (th, D, d) in [
+    (force_planar(transverse_field_ising()), ℂ^10, ℂ^2),
+    (heisenberg_XXX(SU2Irrep; spin=1), Rep[SU₂](1 => 1, 0 => 3), Rep[SU₂](1 => 1)),
+]
+    ts = FiniteMPS(rand, ComplexF64, rand(4:20), d, D)
+    normalize!(ts)
 
-        #rand_quasiparticle is a private non-exported function
-        qst1 = MPSKit.LeftGaugedQP(rand, ts)
-        qst2 = MPSKit.LeftGaugedQP(rand, ts)
+    #rand_quasiparticle is a private non-exported function
+    qst1 = MPSKit.LeftGaugedQP(rand, ts)
+    qst2 = MPSKit.LeftGaugedQP(rand, ts)
 
-        @test norm(axpy!(1, qst1, copy(qst2))) ≤ norm(qst1) + norm(qst2)
-        @test norm(qst1) * 3 ≈ norm(qst1 * 3)
+    @test norm(axpy!(1, qst1, copy(qst2))) ≤ norm(qst1) + norm(qst2)
+    @test norm(qst1) * 3 ≈ norm(qst1 * 3)
 
-        normalize!(qst1)
+    normalize!(qst1)
 
-        qst1_f = convert(FiniteMPS, qst1)
-        qst2_f = convert(FiniteMPS, qst2)
+    qst1_f = convert(FiniteMPS, qst1)
+    qst2_f = convert(FiniteMPS, qst2)
 
-        ovl_f = dot(qst1_f, qst2_f)
-        ovl_q = dot(qst1, qst2)
-        @test ovl_f ≈ ovl_q atol = 1e-5
-        @test norm(qst1_f) ≈ norm(qst1) atol = 1e-5
+    ovl_f = dot(qst1_f, qst2_f)
+    ovl_q = dot(qst1, qst2)
+    @test ovl_f ≈ ovl_q atol = 1e-5
+    @test norm(qst1_f) ≈ norm(qst1) atol = 1e-5
 
-        ev_f = sum(expectation_value(qst1_f, th) - expectation_value(ts, th))
-        ev_q = dot(qst1, effective_excitation_hamiltonian(th, qst1))
-        @test ev_f ≈ ev_q atol = 1e-5
-    end
+    ev_f = sum(expectation_value(qst1_f, th) - expectation_value(ts, th))
+    ev_q = dot(qst1, effective_excitation_hamiltonian(th, qst1))
+    @test ev_f ≈ ev_q atol = 1e-5
+end
 
-    @testset "Infinite" for (th, D, d) in [
-        (force_planar(transverse_field_ising()), ℂ^10, ℂ^2),
-        (heisenberg_XXX(SU2Irrep; spin=1), Rep[SU₂](1 => 1, 0 => 3), Rep[SU₂](1 => 1)),
-    ]
-        period = rand(1:4)
-        ts = InfiniteMPS(fill(d, period), fill(D, period))
+@testset "Infinite Quasiparticle state" verbose = true for (th, D, d) in [
+    (force_planar(transverse_field_ising()), ℂ^10, ℂ^2),
+    (heisenberg_XXX(SU2Irrep; spin=1), Rep[SU₂](1 => 1, 0 => 3), Rep[SU₂](1 => 1)),
+]
+    period = rand(1:4)
+    ts = InfiniteMPS(fill(d, period), fill(D, period))
 
-        #rand_quasiparticle is a private non-exported function
-        qst1 = MPSKit.LeftGaugedQP(rand, ts)
-        qst2 = MPSKit.LeftGaugedQP(rand, ts)
+    #rand_quasiparticle is a private non-exported function
+    qst1 = MPSKit.LeftGaugedQP(rand, ts)
+    qst2 = MPSKit.LeftGaugedQP(rand, ts)
 
-        @test norm(axpy!(1, qst1, copy(qst2))) ≤ norm(qst1) + norm(qst2)
-        @test norm(qst1) * 3 ≈ norm(qst1 * 3)
+    @test norm(axpy!(1, qst1, copy(qst2))) ≤ norm(qst1) + norm(qst2)
+    @test norm(qst1) * 3 ≈ norm(qst1 * 3)
 
-        @test dot(qst1, convert(MPSKit.LeftGaugedQP, convert(MPSKit.RightGaugedQP, qst1))) ≈
-            dot(qst1, qst1) atol = 1e-10
-    end
+    @test dot(qst1, convert(MPSKit.LeftGaugedQP, convert(MPSKit.RightGaugedQP, qst1))) ≈
+        dot(qst1, qst1) atol = 1e-10
 end
