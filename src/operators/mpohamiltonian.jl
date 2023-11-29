@@ -102,13 +102,16 @@ end
 left_virtualspace(H::MPOHamiltonian, i::Int) = space(H[i], 1)
 right_virtualspace(H::MPOHamiltonian, i::Int) = space(H[i], 4)
 
-function Base.getproperty(h::MPOHamiltonian, f::Symbol)
-    if f in (:odim, :period, :imspaces, :domspaces, :Os, :pspaces)
-        return getproperty(h.data, f)
-    else
-        return getfield(h, f)
-    end
-end
+left_virtualdim(H::MPOHamiltonian, i::Int) = size(H[i], 1)
+right_virtualdim(H::MPOHamiltonian, i::Int) = size(H[i], 4)
+
+# function Base.getproperty(h::MPOHamiltonian, f::Symbol)
+#     if f in (:odim, :period, :imspaces, :domspaces, :Os, :pspaces)
+#         return getproperty(h.data, f)
+#     else
+#         return getfield(h, f)
+#     end
+# end
 
 Base.getindex(x::MPOHamiltonian, a) = x.data[a];
 
