@@ -12,6 +12,10 @@ struct InfiniteMPO{T<:AbstractMPOTensor} <: AbstractMPO
         return new{T}(data)
     end
 end
+InfiniteMPO(data::PeriodicVector{T}) where {T<:AbstractMPOTensor} = InfiniteMPO{T}(data)
+function InfiniteMPO(data::AbstractVector{T}) where {T<:AbstractMPOTensor}
+    return InfiniteMPO(PeriodicArray(data))
+end
 
 const SparseMPO{S,T} = InfiniteMPO{T} where {S,T<:SparseMPOTensor{S}}
 
@@ -367,7 +371,7 @@ function Base.conj(a::InfiniteMPO)
 end
 
 function Base.convert(::Type{DenseMPO}, s::SparseMPO)
-    return InfiniteMPO(map(Base.Fix1(convert, MPOTensor), s.data))
+    return InfiniteMPO(map(Base.Fix1(convert, MPOTensor{spacetype(s)}), s.data))
     
     # embeds = PeriodicArray(_embedders.([s[i].domspaces for i in 1:length(s)]))
     
