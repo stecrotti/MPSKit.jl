@@ -14,14 +14,12 @@ Plot the entanglement spectrum of a given InfiniteMPS.
 function entanglementplot end
 @userplot EntanglementPlot
 
-@recipe function f(
-    h::EntanglementPlot;
-    site=0,
-    expand_symmetry=false,
-    sortby=maximum,
-    sector_margin=1//10,
-    sector_formatter=string,
-)
+@recipe function f(h::EntanglementPlot;
+                   site=0,
+                   expand_symmetry=false,
+                   sortby=maximum,
+                   sector_margin=1 // 10,
+                   sector_formatter=string)
     mps = h.args[1]
     site <= length(mps) || throw(ArgumentError("Not a valid site for the given mps."))
 
@@ -55,7 +53,7 @@ function entanglementplot end
 
             # Put single dot in the middle, or a linear range with padding.
             if n_spectrum == 1
-                x = [i + 1//2]
+                x = [i + 1 // 2]
             else
                 x = range(i + sector_margin, i + 1 - sector_margin; length=n_spectrum)
             end
@@ -97,22 +95,19 @@ Plot the partial transfer matrix spectrum of two InfiniteMPS's.
 """
 function transferplot end
 @userplot TransferPlot
-@recipe function f(
-    h::TransferPlot;
-    sectors=nothing,
-    transferkwargs=(;),
-    thetaorigin=0,
-    sector_formatter=string,
-)
+@recipe function f(h::TransferPlot;
+                   sectors=nothing,
+                   transferkwargs=(;),
+                   thetaorigin=0,
+                   sector_formatter=string)
     if sectors === nothing
         sectors = [one(sectortype(h.args[1]))]
     end
 
     for sector in sectors
         below = length(h.args) == 1 ? h.args[1] : h.args[2]
-        spectrum = transfer_spectrum(
-            h.args[1]; below=below, sector=sector, transferkwargs...
-        )
+        spectrum = transfer_spectrum(h.args[1]; below=below, sector=sector,
+                                     transferkwargs...)
 
         @series begin
             yguide --> "r"

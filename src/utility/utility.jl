@@ -1,5 +1,5 @@
-const AbstractBlockOrTensorMap{S,N₁,N₂} = Union{BlockTensorMap{S,N₁,N₂}, AbstractTensorMap{S,N₁,N₂}} where {S,N₁,N₂}
-
+const AbstractBlockOrTensorMap{S,N₁,N₂} = Union{BlockTensorMap{S,N₁,N₂},
+                                                AbstractTensorMap{S,N₁,N₂}} where {S,N₁,N₂}
 
 function _transpose_front(t::AbstractTensorMap) # make TensorMap{S,N₁+N₂-1,1}
     I1 = TensorKit.codomainind(t)
@@ -11,9 +11,8 @@ function _transpose_tail(t::AbstractTensorMap) # make TensorMap{S,1,N₁+N₂-1}
     I2 = TensorKit.domainind(t)
     return transpose(t, ((I1[1],), (I2..., reverse(Base.tail(I1))...)))
 end
-function _transpose_as(
-    t1::AbstractTensorMap, t2::AbstractTensorMap{S,N1,N2}
-) where {S,N1,N2}
+function _transpose_as(t1::AbstractTensorMap,
+                       t2::AbstractTensorMap{S,N1,N2}) where {S,N1,N2}
     I1 = (TensorKit.codomainind(t1)..., reverse(TensorKit.domainind(t1))...)
 
     A = ntuple(x -> I1[x], N1)
@@ -28,9 +27,8 @@ _lastspace(t::AbstractTensorMap) = space(t, numind(t))
 _lastspace(t::BlockTensorMap) = space(t, numind(t))
 
 #given a hamiltonian with unit legs on the side, decompose it using svds to form a "localmpo"
-function decompose_localmpo(
-    inpmpo::AbstractTensorMap{PS,N,N}, trunc=truncbelow(Defaults.tol)
-) where {PS,N}
+function decompose_localmpo(inpmpo::AbstractTensorMap{PS,N,N},
+                            trunc=truncbelow(Defaults.tol)) where {PS,N}
     N == 2 && return [inpmpo]
 
     leftind = (N + 1, 1, 2)
@@ -38,16 +36,14 @@ function decompose_localmpo(
     U, S, V = tsvd(transpose(inpmpo, (leftind, rightind)); trunc=trunc)
 
     A = transpose(U * S, ((2, 3), (1, 4)))
-    B = transpose(
-        V, ((1, reverse(ntuple(x -> x + N, N - 2))...), ntuple(x -> x + 1, N - 1))
-    )
+    B = transpose(V,
+                  ((1, reverse(ntuple(x -> x + N, N - 2))...), ntuple(x -> x + 1, N - 1)))
     return [A; decompose_localmpo(B)]
 end
 
 # given a state with util legs on the side, decompose using svds to form an array of mpstensors
-function decompose_localmps(
-    state::AbstractTensorMap{PS,N,1}, trunc=truncbelow(Defaults.tol)
-) where {PS,N}
+function decompose_localmps(state::AbstractTensorMap{PS,N,1},
+                            trunc=truncbelow(Defaults.tol)) where {PS,N}
     N == 2 && return [state]
 
     leftind = (1, 2)
@@ -107,9 +103,8 @@ end
 #needed this; perhaps move to tensorkit?
 TensorKit.fuse(f::T) where {T<:VectorSpace} = f
 
-function inplace_add!(
-    a::Union{AbstractTensorMap,Nothing}, b::Union{AbstractTensorMap,Nothing}
-)
+function inplace_add!(a::Union{AbstractTensorMap,Nothing},
+                      b::Union{AbstractTensorMap,Nothing})
     isnothing(a) && isnothing(b) && return nothing
     isnothing(a) && return b
     isnothing(b) && return a
@@ -170,6 +165,6 @@ function fuser(::Type{T}, V1::SumSpace{S}, V2::SumSpace{S}) where {T<:Number,S<:
             F[I] = isomorphism(storagetype(F), V)
         end
     end
-    
+
     return F
 end

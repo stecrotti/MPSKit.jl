@@ -80,10 +80,9 @@ function ManifoldPoint(state::Union{InfiniteMPS,FiniteMPS}, envs)
 end
 
 function ManifoldPoint(state::MPSMultiline, envs)
-    ac_d = [
-        MPSKit.∂∂AC(v, state, envs.opp, envs) * state.AC[v] for
-        v in CartesianIndices(state.AC)
-    ]
+    ac_d = [MPSKit.∂∂AC(v, state, envs.opp, envs) * state.AC[v]
+            for
+            v in CartesianIndices(state.AC)]
     g = [Grassmann.project(d, a) for (d, a) in zip(ac_d, state.AL)]
 
     f = expectation_value(state, envs)
@@ -121,7 +120,7 @@ end
 function fg(x::ManifoldPoint{<:MPSMultiline})
     # the gradient I want to return is the preconditioned gradient!
     g_prec = map(enumerate(x.g)) do (i, cg)
-        PrecGrad(rmul!(copy(cg), x.state.CR[i]'), x.Rhoreg[i])
+        return PrecGrad(rmul!(copy(cg), x.state.CR[i]'), x.Rhoreg[i])
     end
 
     f = expectation_value(x.state, x.envs)
@@ -197,9 +196,8 @@ Transport a tangent vector `h` along the retraction from `x` in direction `g` by
 """
 function transport!(h, x, g, alpha, xp)
     for i in 1:length(h)
-        h[i] = PrecGrad(
-            Grassmann.transport!(h[i].Pg, x.state.AL[i], g[i].Pg, alpha, xp.state.AL[i])
-        )
+        h[i] = PrecGrad(Grassmann.transport!(h[i].Pg, x.state.AL[i], g[i].Pg, alpha,
+                                             xp.state.AL[i]))
     end
     return h
 end
@@ -208,11 +206,9 @@ end
 Euclidean inner product between two Grassmann tangents of an infinite MPS.
 """
 function inner(x, g1, g2)
-    return 2 * real(sum(
-        map(zip(x.Rhoreg, g1, g2)) do (a, b, c)
-            inner(b, c, a)
-        end,
-    ))
+    return 2 * real(sum(map(zip(x.Rhoreg, g1, g2)) do (a, b, c)
+                            return inner(b, c, a)
+                        end))
 end
 
 """

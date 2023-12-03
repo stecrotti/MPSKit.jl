@@ -11,9 +11,8 @@ struct QPEnv{A,B} <: Cache
     renvs::B
 end
 
-function environments(
-    exci::Union{InfiniteQP,Multiline{<:InfiniteQP}}, H; solver=Defaults.linearsolver
-)
+function environments(exci::Union{InfiniteQP,Multiline{<:InfiniteQP}}, H;
+                      solver=Defaults.linearsolver)
     # Explicitly define optional arguments as these depend on solver,
     # which needs to come after these arguments.
     lenvs = environments(exci.left_gs, H; solver=solver)
@@ -21,9 +20,8 @@ function environments(
     return environments(exci, H, lenvs; solver=solver)
 end
 
-function environments(
-    exci::Union{InfiniteQP,Multiline{<:InfiniteQP}}, H, lenvs; solver=Defaults.linearsolver
-)
+function environments(exci::Union{InfiniteQP,Multiline{<:InfiniteQP}}, H, lenvs;
+                      solver=Defaults.linearsolver)
     # Explicitly define optional arguments as these depend on solver,
     # which needs to come after these arguments.
     renvs = exci.trivial ? lenvs : environments(exci.right_gs, H; solver=solver)
@@ -31,31 +29,27 @@ function environments(
     return environments(exci, H, lenvs, renvs; solver=solver)
 end
 
-function gen_exci_lw_rw(
-    left_gs::Union{FiniteMPS{A},InfiniteMPS{A}},
-    ham::Union{SparseMPO,MPOHamiltonian},
-    right_gs,
-    excileg,
-) where {A}
+function gen_exci_lw_rw(left_gs::Union{FiniteMPS{A},InfiniteMPS{A}},
+                        ham::Union{SparseMPO,MPOHamiltonian},
+                        right_gs,
+                        excileg) where {A}
     B = tensormaptype(spacetype(A), 2, 2, storagetype(A))
     lw = PeriodicVector{BlockTensorMap{spacetype(A),2,2,B,4}}(undef, length(left_gs))
     for i in 1:length(lw)
         V_mps1 = SumSpace(left_virtualspace(left_gs, i - 1))
         V_mps2 = SumSpace(right_virtualspace(right_gs, i - 1))
         V_mpo = space(ham[i], 1)
-        lw[i] = BlockTensorMap(
-            undef, scalartype(left_gs), V_mps1 ⊗ V_mpo' ← excileg' ⊗ V_mps2
-        )
+        lw[i] = BlockTensorMap(undef, scalartype(left_gs),
+                               V_mps1 ⊗ V_mpo' ← excileg' ⊗ V_mps2)
     end
-    
+
     rw = PeriodicVector{BlockTensorMap{spacetype(A),2,2,B,4}}(undef, length(left_gs))
     for i in 1:length(rw)
-        V_mps1 = SumSpace(left_virtualspace(left_gs, i ))
+        V_mps1 = SumSpace(left_virtualspace(left_gs, i))
         V_mps2 = SumSpace(right_virtualspace(right_gs, i))
         V_mpo = space(ham[i], 1)
-        rw[i] = BlockTensorMap(
-            undef, scalartype(left_gs), V_mps1 ⊗ V_mpo' ← excileg' ⊗ V_mps2
-        )
+        rw[i] = BlockTensorMap(undef, scalartype(left_gs),
+                               V_mps1 ⊗ V_mpo' ← excileg' ⊗ V_mps2)
     end
     # lw = PeriodicArray{B,2}(undef, length(ham), length(left_gs))
     # rw = PeriodicArray{B,2}(undef, length(ham), length(left_gs))
@@ -82,9 +76,8 @@ function gen_exci_lw_rw(
     return lw, rw
 end
 
-function environments(
-    exci::InfiniteQP, ham::MPOHamiltonian, lenvs, renvs; solver=Defaults.linearsolver
-)
+function environments(exci::InfiniteQP, ham::MPOHamiltonian, lenvs, renvs;
+                      solver=Defaults.linearsolver)
     ids = collect(Iterators.filter(x -> isone(ham, x), 2:(virtualdim(ham) - 1)))
 
     AL = exci.left_gs.AL
@@ -93,17 +86,22 @@ function environments(
     lBs, rBs = gen_exci_lw_rw(exci.left_gs, ham, exci.right_gs, space(exci[1], 3))
 
     for pos in 1:length(exci)
-        lBs[pos + 1] = lBs[pos] * TransferMatrix(AR[pos], ham[pos], AL[pos]) / exp(1im * exci.momentum)
-        add!(lBs[pos + 1], leftenv(lenvs, pos, exci.left_gs) *
-            TransferMatrix(exci[pos], ham[pos], AL[pos]), inv(exp(1im * exci.momentum)))
-        
+        lBs[pos + 1] = lBs[pos] * TransferMatrix(AR[pos], ham[pos], AL[pos]) /
+                       exp(1im * exci.momentum)
+        add!(lBs[pos + 1],
+             leftenv(lenvs, pos, exci.left_gs) *
+             TransferMatrix(exci[pos], ham[pos], AL[pos]),
+             inv(exp(1im * exci.momentum)))
+
         if exci.trivial
-            @plansor lBs[pos + 1][-1 -2; -3 -4] -=
-                lBs[pos + 1][1 4; -3 2] *
-                convert(BlockTensorMap, r_RL(exci.left_gs, pos))[2; 3] *
-                τ[3 4; 5 1] *
-                convert(BlockTensorMap, l_RL(exci.left_gs, pos + 1))[-1; 6] *
-                τ[5 6; -4 -2]
+            @plansor lBs[pos + 1][-1 -2; -3 -4] -= lBs[pos + 1][1 4; -3 2] *
+                                                   convert(BlockTensorMap,
+                                                           r_RL(exci.left_gs, pos))[2; 3] *
+                                                   τ[3 4; 5 1] *
+                                                   convert(BlockTensorMap,
+                                                           l_RL(exci.left_gs, pos + 1))[-1;
+                                                                                        6] *
+                                                   τ[5 6; -4 -2]
         end
         # lBs[:, pos + 1] =
         #     lBs[:, pos] * TransferMatrix(AR[pos], ham[pos], AL[pos]) /
@@ -123,32 +121,29 @@ function environments(
     end
 
     for pos in length(exci):-1:1
-        rBs[:, pos - 1] =
-            TransferMatrix(AL[pos], ham[pos], AR[pos]) *
-            rBs[:, pos] *
-            exp(1im * exci.momentum)
-        rBs[:, pos - 1] +=
-            TransferMatrix(exci[pos], ham[pos], AR[pos]) *
-            rightenv(renvs, pos, exci.right_gs) *
-            exp(1im * exci.momentum)
+        rBs[:, pos - 1] = TransferMatrix(AL[pos], ham[pos], AR[pos]) *
+                          rBs[:, pos] *
+                          exp(1im * exci.momentum)
+        rBs[:, pos - 1] += TransferMatrix(exci[pos], ham[pos], AR[pos]) *
+                           rightenv(renvs, pos, exci.right_gs) *
+                           exp(1im * exci.momentum)
 
         exci.trivial && for i in ids
-            @plansor rBs[i, pos - 1][-1 -2; -3 -4] -=
-                τ[6 4; 1 3] *
-                rBs[i, pos - 1][1 3; -3 2] *
-                l_LR(exci.left_gs, pos)[2; 4] *
-                r_LR(exci.left_gs, pos - 1)[-1; 5] *
-                τ[-2 -4; 5 6]
-        end
+                        @plansor rBs[i, pos - 1][-1 -2; -3 -4] -= τ[6 4; 1 3] *
+                                                                  rBs[i, pos - 1][1 3; -3 2] *
+                                                                  l_LR(exci.left_gs, pos)[2; 4] *
+                                                                  r_LR(exci.left_gs, pos - 1)[-1;
+                                                                                              5] *
+                                                                  τ[-2 -4; 5 6]
+                        end
     end
 
     @sync begin
-        Threads.@spawn $lBs[:, 1] = left_excitation_transfer_system(
-            $lBs[:, 1], $ham, $exci; solver=$solver
-        )
-        Threads.@spawn $rBs[:, end] = right_excitation_transfer_system(
-            $rBs[:, end], $ham, $exci; solver=$solver
-        )
+        Threads.@spawn $lBs[:, 1] = left_excitation_transfer_system($lBs[:, 1], $ham, $exci;
+                                                                    solver=$solver)
+        Threads.@spawn $rBs[:, end] = right_excitation_transfer_system($rBs[:, end], $ham,
+                                                                       $exci;
+                                                                       solver=$solver)
     end
 
     lB_cur = lBs[:, 1]
@@ -157,13 +152,12 @@ function environments(
         lB_cur = lB_cur * TransferMatrix(AR[i], ham[i], AL[i]) / exp(1im * exci.momentum)
 
         exci.trivial && for k in ids
-            @plansor lB_cur[k][-1 -2; -3 -4] -=
-                lB_cur[k][1 4; -3 2] *
-                r_RL(exci.left_gs, i)[2; 3] *
-                τ[3 4; 5 1] *
-                l_RL(exci.left_gs, i + 1)[-1; 6] *
-                τ[5 6; -4 -2]
-        end
+                        @plansor lB_cur[k][-1 -2; -3 -4] -= lB_cur[k][1 4; -3 2] *
+                                                            r_RL(exci.left_gs, i)[2; 3] *
+                                                            τ[3 4; 5 1] *
+                                                            l_RL(exci.left_gs, i + 1)[-1; 6] *
+                                                            τ[5 6; -4 -2]
+                        end
 
         lBs[:, i + 1] += lB_cur
     end
@@ -173,13 +167,12 @@ function environments(
         rB_cur = TransferMatrix(AL[i], ham[i], AR[i]) * rB_cur * exp(1im * exci.momentum)
 
         exci.trivial && for k in ids
-            @plansor rB_cur[k][-1 -2; -3 -4] -=
-                τ[6 4; 1 3] *
-                rB_cur[k][1 3; -3 2] *
-                l_LR(exci.left_gs, i)[2; 4] *
-                r_LR(exci.left_gs, i - 1)[-1; 5] *
-                τ[-2 -4; 5 6]
-        end
+                        @plansor rB_cur[k][-1 -2; -3 -4] -= τ[6 4; 1 3] *
+                                                            rB_cur[k][1 3; -3 2] *
+                                                            l_LR(exci.left_gs, i)[2; 4] *
+                                                            r_LR(exci.left_gs, i - 1)[-1; 5] *
+                                                            τ[-2 -4; 5 6]
+                        end
 
         rBs[:, i - 1] += rB_cur
     end
@@ -187,12 +180,10 @@ function environments(
     return QPEnv(lBs, rBs, lenvs, renvs)
 end
 
-function environments(
-    exci::FiniteQP,
-    ham::MPOHamiltonian,
-    lenvs=environments(exci.left_gs, ham),
-    renvs=exci.trivial ? lenvs : environments(exci.right_gs, ham),
-)
+function environments(exci::FiniteQP,
+                      ham::MPOHamiltonian,
+                      lenvs=environments(exci.left_gs, ham),
+                      renvs=exci.trivial ? lenvs : environments(exci.right_gs, ham))
     AL = exci.left_gs.AL
     AR = exci.right_gs.AR
 
@@ -201,27 +192,24 @@ function environments(
 
     for pos in 1:(length(exci) - 1)
         lBs[pos + 1] = lBs[pos] * TransferMatrix(AR[pos], ham[pos], AL[pos])
-        lBs[pos + 1] +=
-            leftenv(lenvs, pos, exci.left_gs) * TransferMatrix(exci[pos], ham[pos], AL[pos])
+        lBs[pos + 1] += leftenv(lenvs, pos, exci.left_gs) *
+                        TransferMatrix(exci[pos], ham[pos], AL[pos])
     end
 
     for pos in length(exci):-1:2
         rBs[pos - 1] = TransferMatrix(AL[pos], ham[pos], AR[pos]) * rBs[pos]
-        rBs[pos - 1] +=
-            TransferMatrix(exci[pos], ham[pos], AR[pos]) *
-            rightenv(renvs, pos, exci.right_gs)
+        rBs[pos - 1] += TransferMatrix(exci[pos], ham[pos], AR[pos]) *
+                        rightenv(renvs, pos, exci.right_gs)
     end
 
     return QPEnv(lBs, rBs, lenvs, renvs)
 end
 
-function environments(
-    exci::Multiline{<:InfiniteQP},
-    ham::MPOMultiline,
-    lenvs,
-    renvs;
-    solver=Defaults.linearsolver,
-)
+function environments(exci::Multiline{<:InfiniteQP},
+                      ham::MPOMultiline,
+                      lenvs,
+                      renvs;
+                      solver=Defaults.linearsolver)
     exci.trivial ||
         @warn "there is a phase ambiguity in topologically nontrivial statmech excitations"
 
@@ -256,57 +244,47 @@ function environments(
             lv = leftenv(lenvs, col, left_gs)[row]
             rv = rightenv(lenvs, col, left_gs)[row]
             left_renorms[col] = @plansor lv[1 2; 3] *
-                left_above.AC[col][3 4; 5] *
-                hamrow[col][2 6; 4 7] *
-                rv[5 7; 8] *
-                conj(left_below.AC[col][1 6; 8])
+                                         left_above.AC[col][3 4; 5] *
+                                         hamrow[col][2 6; 4 7] *
+                                         rv[5 7; 8] *
+                                         conj(left_below.AC[col][1 6; 8])
 
             lv = leftenv(renvs, col, right_gs)[row]
             rv = rightenv(renvs, col, right_gs)[row]
             right_renorms[col] = @plansor lv[1 2; 3] *
-                right_above.AC[col][3 4; 5] *
-                hamrow[col][2 6; 4 7] *
-                rv[5 7; 8] *
-                conj(right_below.AC[col][1 6; 8])
+                                          right_above.AC[col][3 4; 5] *
+                                          hamrow[col][2 6; 4 7] *
+                                          rv[5 7; 8] *
+                                          conj(right_below.AC[col][1 6; 8])
         end
 
         left_renorms = left_renorms .^ -1
         right_renorms = right_renorms .^ -1
 
-        lB_cur = fill_data!(
-            similar(
-                left_below.AL[1],
-                left_virtualspace(left_below, 0) * _firstspace(hamrow[1])',
-                exci_space' * right_virtualspace(right_above, 0),
-            ),
-            zero,
-        )
-        rB_cur = fill_data!(
-            similar(
-                left_below.AL[1],
-                left_virtualspace(left_below, 0) * _firstspace(hamrow[1]),
-                exci_space' * right_virtualspace(right_above, 0),
-            ),
-            zero,
-        )
+        lB_cur = fill_data!(similar(left_below.AL[1],
+                                    left_virtualspace(left_below, 0) *
+                                    _firstspace(hamrow[1])',
+                                    exci_space' * right_virtualspace(right_above, 0)),
+                            zero)
+        rB_cur = fill_data!(similar(left_below.AL[1],
+                                    left_virtualspace(left_below, 0) *
+                                    _firstspace(hamrow[1]),
+                                    exci_space' * right_virtualspace(right_above, 0)),
+                            zero)
         for col in 1:numcols
-            lB_cur =
-                lB_cur *
-                TransferMatrix(right_above.AR[col], hamrow[col], left_below.AL[col])
-            lB_cur +=
-                c_lenvs[col] *
-                TransferMatrix(exci[row][col], hamrow[col], left_below.AL[col])
+            lB_cur = lB_cur *
+                     TransferMatrix(right_above.AR[col], hamrow[col], left_below.AL[col])
+            lB_cur += c_lenvs[col] *
+                      TransferMatrix(exci[row][col], hamrow[col], left_below.AL[col])
             lB_cur *= left_renorms[col] * exp(-1im * exci.momentum)
             lBs[row, col] = lB_cur
 
             col = numcols - col + 1
 
-            rB_cur =
-                TransferMatrix(left_above.AL[col], hamrow[col], right_below.AR[col]) *
-                rB_cur
-            rB_cur +=
-                TransferMatrix(exci[row][col], hamrow[col], right_below.AR[col]) *
-                c_renvs[col]
+            rB_cur = TransferMatrix(left_above.AL[col], hamrow[col], right_below.AR[col]) *
+                     rB_cur
+            rB_cur += TransferMatrix(exci[row][col], hamrow[col], right_below.AR[col]) *
+                      c_renvs[col]
             rB_cur *= exp(1im * exci.momentum) * right_renorms[col]
             rBs[row, col] = rB_cur
         end
@@ -315,57 +293,55 @@ function environments(
         tm_LR = TransferMatrix(left_above.AL, hamrow, right_below.AR)
 
         if exci.trivial
-            @plansor rvec[-1 -2; -3] :=
-                rightenv(lenvs, 0, left_gs)[row][-1 -2; 1] * conj(left_below.CR[0][-3; 1])
-            @plansor lvec[-1 -2; -3] :=
-                leftenv(lenvs, 1, left_gs)[row][-1 -2; 1] * left_above.CR[0][1; -3]
+            @plansor rvec[-1 -2; -3] := rightenv(lenvs, 0, left_gs)[row][-1 -2; 1] *
+                                        conj(left_below.CR[0][-3; 1])
+            @plansor lvec[-1 -2; -3] := leftenv(lenvs, 1, left_gs)[row][-1 -2; 1] *
+                                        left_above.CR[0][1; -3]
 
             tm_RL = regularize(tm_RL, lvec, rvec)
 
-            @plansor rvec[-1 -2; -3] :=
-                rightenv(renvs, 0, right_gs)[row][1 -2; -3] * right_above.CR[0][-1; 1]
-            @plansor lvec[-1 -2; -3] :=
-                conj(right_below.CR[0][-3; 1]) * leftenv(renvs, 1, right_gs)[row][-1 -2; 1]
+            @plansor rvec[-1 -2; -3] := rightenv(renvs, 0, right_gs)[row][1 -2; -3] *
+                                        right_above.CR[0][-1; 1]
+            @plansor lvec[-1 -2; -3] := conj(right_below.CR[0][-3; 1]) *
+                                        leftenv(renvs, 1, right_gs)[row][-1 -2; 1]
 
             tm_LR = regularize(tm_LR, lvec, rvec)
         end
 
-        (lBs[row, end], convhist) = linsolve(
-            flip(tm_RL),
-            lB_cur,
-            lB_cur,
-            solver,
-            1,
-            -exp(-1im * numcols * exci.momentum) * prod(left_renorms),
-        )
+        (lBs[row, end], convhist) = linsolve(flip(tm_RL),
+                                             lB_cur,
+                                             lB_cur,
+                                             solver,
+                                             1,
+                                             -exp(-1im * numcols * exci.momentum) *
+                                             prod(left_renorms))
         convhist.converged == 0 && @warn "lbe failed to converge $(convhist.normres)"
 
-        (rBs[row, 1], convhist) = linsolve(
-            tm_LR,
-            rB_cur,
-            rB_cur,
-            GMRES(),
-            1,
-            -exp(1im * numcols * exci.momentum) * prod(right_renorms),
-        )
+        (rBs[row, 1], convhist) = linsolve(tm_LR,
+                                           rB_cur,
+                                           rB_cur,
+                                           GMRES(),
+                                           1,
+                                           -exp(1im * numcols * exci.momentum) *
+                                           prod(right_renorms))
         convhist.converged == 0 && @warn "rbe failed to converge $(convhist.normres)"
 
         left_cur = lBs[row, end]
         right_cur = rBs[row, 1]
         for col in 1:(numcols - 1)
-            left_cur =
-                left_renorms[col] *
-                left_cur *
-                TransferMatrix(right_above.AR[col], hamrow[col], left_below.AL[col]) *
-                exp(-1im * exci.momentum)
+            left_cur = left_renorms[col] *
+                       left_cur *
+                       TransferMatrix(right_above.AR[col], hamrow[col],
+                                      left_below.AL[col]) *
+                       exp(-1im * exci.momentum)
             lBs[row, col] += left_cur
 
             col = numcols - col + 1
-            right_cur =
-                TransferMatrix(left_above.AL[col], hamrow[col], right_below.AR[col]) *
-                right_cur *
-                exp(1im * exci.momentum) *
-                right_renorms[col]
+            right_cur = TransferMatrix(left_above.AL[col], hamrow[col],
+                                       right_below.AR[col]) *
+                        right_cur *
+                        exp(1im * exci.momentum) *
+                        right_renorms[col]
             rBs[row, col] += right_cur
         end
     end

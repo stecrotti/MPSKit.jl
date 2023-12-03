@@ -24,12 +24,14 @@ VectorInterface.scalartype(::Type{<:FinEnv{A,B,C,D}}) where {A,B,C,D} = scalarty
 
 Initialize environments.
 """
-function FinEnv(ψ::AbstractFiniteMPS, O::Union{InfiniteMPO,MPOHamiltonian}, above::Union{Nothing,AbstractFiniteMPS})
+function FinEnv(ψ::AbstractFiniteMPS,
+                O::Union{InfiniteMPO,MPOHamiltonian},
+                above::Union{Nothing,AbstractFiniteMPS})
     # Initialize left environment tensors
     GL = map(0:length(ψ)) do i
         Vbot = left_virtualspace(ψ, i)
         Vmpo = left_virtualspace(O, i)
-        Vtop = isnothing(above) ? Vbot : left_virtualspace(above, i) 
+        Vtop = isnothing(above) ? Vbot : left_virtualspace(above, i)
         return BlockTensorMap(undef, scalartype(ψ), Vbot ⊗ Vmpo' ← Vtop)
     end
 
@@ -40,11 +42,11 @@ function FinEnv(ψ::AbstractFiniteMPS, O::Union{InfiniteMPO,MPOHamiltonian}, abo
         Vtop = isnothing(above) ? Vbot : right_virtualspace(above, i)
         return BlockTensorMap(undef, scalartype(ψ), Vtop ⊗ Vmpo' ← Vbot)
     end
-    
+
     # Initialize dependency vectors
     left_deps = fill!(similar(ψ.AL), similar(ψ.AL[1]))
     right_deps = fill!(similar(ψ.AR), similar(ψ.AR[1]))
-    
+
     return FinEnv(above, O, left_deps, right_deps, GL, GR)
 end
 
@@ -68,23 +70,21 @@ function environments(ψ::FiniteMPS, O::Union{InfiniteMPO,MPOHamiltonian}, top=n
     return envs
 end
 
-
-function environments(
-    state::WindowMPS,
-    O::Union{SparseMPO,MPOHamiltonian,DenseMPO},
-    above=nothing;
-    lenvs=environments(state.left_gs, O, above),
-    renvs=environments(state.right_gs, O, above),
-)
-    (O isa MPOHamiltonian && (isnothing(above) || above === state)) || throw(ArgumentError("MPOHamiltonian requires top and bottom states to be equal."))
+function environments(state::WindowMPS,
+                      O::Union{SparseMPO,MPOHamiltonian,DenseMPO},
+                      above=nothing;
+                      lenvs=environments(state.left_gs, O, above),
+                      renvs=environments(state.right_gs, O, above))
+    (O isa MPOHamiltonian && (isnothing(above) || above === state)) ||
+        throw(ArgumentError("MPOHamiltonian requires top and bottom states to be equal."))
     envs = FinEnv(state, O, above)
-    
+
     # left boundary: extract from left_envs
     envs.leftenvs[1] = leftenv(lenvs, 1, state.left_gs)
-    
+
     # right boundary: extract from right_envs
     envs.rightenvs[end] = rightenv(renvs, length(state), state.right_gs)
-    
+
     return envs
 end
 
@@ -114,12 +114,12 @@ end
 function rightenv(cache::FinEnv, ind, ψ)
     0 <= ind <= length(ψ) || throw(BoundsError(cache, ind))
     a = findlast(i -> ψ.AR[i] !== cache.rdependencies[i], (ind + 1):length(ψ))
-    
+
     if !isnothing(a) # we need to recalculate
         for j in (a + ind):-1:(ind + 1)
             above = isnothing(cache.above) ? ψ.AR[j] : cache.above.AR[j]
-            cache.rightenvs[j] =
-                TransferMatrix(above, cache.opp[j], ψ.AR[j]) * cache.rightenvs[j + 1]
+            cache.rightenvs[j] = TransferMatrix(above, cache.opp[j], ψ.AR[j]) *
+                                 cache.rightenvs[j + 1]
             cache.rdependencies[j] = ψ.AR[j]
         end
     end
@@ -134,8 +134,8 @@ function leftenv(cache::FinEnv, ind, ψ)
     if !isnothing(a) # we need to recalculate
         for j in a:(ind - 1)
             above = isnothing(cache.above) ? ψ.AL[j] : cache.above.AL[j]
-            cache.leftenvs[j + 1] =
-                cache.leftenvs[j] * TransferMatrix(above, cache.opp[j], ψ.AL[j])
+            cache.leftenvs[j + 1] = cache.leftenvs[j] *
+                                    TransferMatrix(above, cache.opp[j], ψ.AL[j])
             cache.ldependencies[j] = ψ.AL[j]
         end
     end

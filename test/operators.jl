@@ -6,8 +6,8 @@ println("
 
 include("setup.jl")
 
-pspaces = (ℙ^4, Rep[U₁](0 => 2), Rep[SU₂](1 => 1))
-vspaces = (ℙ^10, Rep[U₁]((0 => 20)), Rep[SU₂](1//2 => 10, 3//2 => 5, 5//2 => 1))
+pspaces = (ℂ^4, Rep[U₁](0 => 2), Rep[SU₂](1 => 1))
+vspaces = (ℂ^10, Rep[U₁]((0 => 20)), Rep[SU₂](1 // 2 => 10, 3 // 2 => 5, 5 // 2 => 1))
 
 @testset "MPOHamiltonian $(sectortype(pspace))" for (pspace, Dspace) in
                                                     zip(pspaces, vspaces)
@@ -72,12 +72,12 @@ vspaces = (ℙ^10, Rep[U₁]((0 => 20)), Rep[SU₂](1//2 => 10, 3//2 => 5, 5//2 
 end
 
 @testset "DenseMPO" for ham in (transverse_field_ising(), heisenberg_XXX(; spin=1))
-    physical_space = ham.pspaces[1]
+    physical_space = physicalspace(ham, 1)[1]
     ou = oneunit(physical_space)
 
     ts = InfiniteMPS([physical_space], [ou ⊕ physical_space])
 
-    W = convert(DenseMPO, make_time_mpo(ham, 1im * 0.5, WII()))
+    W = convert(DenseMPO, make_time_mpo(ham, 1im * 0.5, WI))
 
     @test abs(dot(W * (W * ts), (W * W) * ts)) ≈ 1.0 atol = 1e-10
 end

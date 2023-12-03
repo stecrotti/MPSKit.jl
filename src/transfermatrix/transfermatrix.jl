@@ -75,9 +75,8 @@ function regularize!(v::MPSTensor, lvec::MPSBondTensor, rvec::MPSBondTensor)
     @plansor v[-1 -2; -3] -= lvec[1; 2] * v[2 -2; 1] * rvec[-1; -3]
 end
 
-function regularize!(
-    v::AbstractTensorMap{S,1,2} where {S}, lvec::MPSBondTensor, rvec::MPSBondTensor
-)
+function regularize!(v::AbstractTensorMap{S,1,2} where {S}, lvec::MPSBondTensor,
+                     rvec::MPSBondTensor)
     @plansor v[-1; -2 -3] -= lvec[1; 2] * v[2; -2 1] * rvec[-1; -3]
 end
 
@@ -86,6 +85,6 @@ function regularize!(v::MPOTensor, lvec::MPSTensor, rvec::MPSTensor)
 end
 
 function regularize!(v::MPOTensor, lvec::MPSBondTensor, rvec::MPSBondTensor)
-    @plansor v[-1 -2; -3 -4] -=
-        τ[6 2; 3 4] * v[3 4; -3 5] * lvec[5; 2] * rvec[-1; 1] * τ[-2 -4; 1 6]
+    @plansor v[-1 -2; -3 -4] -= τ[6 2; 3 4] * v[3 4; -3 5] * lvec[5; 2] * rvec[-1; 1] *
+                                τ[-2 -4; 1 6]
 end

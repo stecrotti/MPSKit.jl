@@ -9,7 +9,6 @@ const MPSTensor{S} = GenericMPSTensor{S,2} where {S} #the usual mps tensors on w
 
 const AbstractMPSTensor{S} = AbstractBlockOrTensorMap{S,2,1}
 
-
 """
     MPSTensor([f, eltype], d::Int, left_D::Int, [right_D]::Int])
     MPSTensor([f, eltype], physicalspace::Union{S,CompositeSpace{S}}, 
@@ -29,14 +28,12 @@ Construct an `MPSTensor` with given physical and virtual spaces.
 - `left_D::Int`: left virtual dimension
 - `right_D::Int`: right virtual dimension
 """
-function MPSTensor(
-    f, eltype, P::Union{S,CompositeSpace{S}}, Vₗ::S, Vᵣ::S=Vₗ
-) where {S<:ElementarySpace}
+function MPSTensor(f, eltype, P::Union{S,CompositeSpace{S}}, Vₗ::S,
+                   Vᵣ::S=Vₗ) where {S<:ElementarySpace}
     return TensorMap(f, eltype, Vₗ ⊗ P ← Vᵣ)
 end
-function MPSTensor(
-    P::Union{S,CompositeSpace{S}}, Vₗ::S, Vᵣ::S=Vₗ
-) where {S<:ElementarySpace}
+function MPSTensor(P::Union{S,CompositeSpace{S}}, Vₗ::S,
+                   Vᵣ::S=Vₗ) where {S<:ElementarySpace}
     return MPSTensor(rand, Defaults.eltype, P, Vₗ, Vᵣ)
 end
 
@@ -96,6 +93,7 @@ TensorKit.spacetype(Ψ::AbstractMPS) = spacetype(typeof(Ψ))
 TensorKit.spacetype(Ψtype::Type{<:AbstractMPS}) = spacetype(site_type(Ψtype))
 TensorKit.sectortype(Ψ::AbstractMPS) = sectortype(typeof(Ψ))
 TensorKit.sectortype(Ψtype::Type{<:AbstractMPS}) = sectortype(site_type(Ψtype))
+TensorKit.storagetype(::Union{T,Type{T}}) where {T<:AbstractMPS} = storagetype(site_type(T))
 
 """
     left_virtualspace(Ψ::AbstractMPS, i::Int)

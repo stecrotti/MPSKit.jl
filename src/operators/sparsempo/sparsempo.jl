@@ -21,9 +21,9 @@ const SparseMPO{S,T} = InfiniteMPO{T} where {S,T<:SparseMPOTensor{S}}
 
 VectorInterface.scalartype(::Type{<:InfiniteMPO{T}}) where {T} = scalartype(T)
 
-
 left_virtualspace(O::InfiniteMPO, i::Int) = left_virtualspace(O[i])
 right_virtualspace(O::InfiniteMPO, i::Int) = right_virtualspace(O[i])
+physicalspace(O::InfiniteMPO, i::Int) = physicalspace(O[i])
 
 left_virtualdim(O::SparseMPO, i::Int) = size(O[i], 1)
 right_virtualdim(O::SparseMPO, i::Int) = size(O[i], 4)
@@ -38,35 +38,36 @@ right_virtualdim(O::SparseMPO, i::Int) = size(O[i], 4)
 #     pspaces::PeriodicArray{S,1}
 # end
 
-function Base.getproperty(h::SparseMPO, f::Symbol)
-    if f == :odim
-        return size(h.domspaces, 2)
-    elseif f == :period
-        return size(h.pspaces, 1)
-    elseif f == :imspaces
-        return circshift(adjoint.(h.domspaces), (-1, 0))
-    else
-        return getfield(h, f)
-    end
-end
+# function Base.getproperty(h::SparseMPO, f::Symbol)
+#     if f == :odim
+#         return size(h.domspaces, 2)
+#     elseif f == :period
+#         return size(h.pspaces, 1)
+#     elseif f == :imspaces
+#         return circshift(adjoint.(h.domspaces), (-1, 0))
+#     else
+#         return getfield(h, f)
+#     end
+# end
 
 Base.eltype(::InfiniteMPO{T}) where {T} = T
 Base.eltype(::Type{InfiniteMPO{T}}) where {T} = T
-Base.parent(O::InfiniteMPO) = O.data
 period(O::InfiniteMPO) = length(parent(O))
-TensorKit.spacetype(O::Union{InfiniteMPO, Type{<:InfiniteMPO}}) = spacetype(eltype(O))
+TensorKit.spacetype(O::Union{InfiniteMPO,Type{<:InfiniteMPO}}) = spacetype(eltype(O))
 
 Base.checkbounds(a::SparseMPO, I...) = true
 
 # AbstractArray
 # -------------
-Base.parent(a::SparseMPO) = a.data
-Base.size(a::SparseMPO) = size(parent(a))
-Base.length(a::SparseMPO) = length(parent(a))
-Base.getindex(a::SparseMPO, i::Int) = getindex(parent(a), i)
-Base.setindex!(a::SparseMPO, v, i::Int) = setindex!(parent(a), v, i)
-Base.copy(x::SparseMPO) = SparseMPO(copy(parent(x)))
-Base.deepcopy(x::SparseMPO) = SparseMPO(deepcopy(parent(x)))
+Base.parent(a::InfiniteMPO) = a.data
+Base.size(a::InfiniteMPO) = size(parent(a))
+Base.length(a::InfiniteMPO) = length(parent(a))
+Base.getindex(a::InfiniteMPO, i::Int) = getindex(parent(a), i)
+Base.setindex!(a::InfiniteMPO, v, i::Int) = setindex!(parent(a), v, i)
+Base.copy(x::InfiniteMPO) = InfiniteMPO(copy(parent(x)))
+Base.deepcopy(x::InfiniteMPO) = InfiniteMPO(deepcopy(parent(x)))
+
+Base.iterate(x::InfiniteMPO, args...) = iterate(parent(x), args...)
 
 # promotion and conversion
 # ------------------------
@@ -78,7 +79,6 @@ function Base.convert(::Type{InfiniteMPO{T₁}}, x::InfiniteMPO{T₂}) where {T�
     T₁ === T₂ && return x
     return InfiniteMPO{T₁}(map(Base.Fix1(convert, T₁), x.data))
 end
-
 
 #=
 allow passing in
@@ -121,9 +121,8 @@ function SparseMPO(x::AbstractArray{Union{E,M},3}) where {M<:MPOTensor,E<:Number
     (period, numrows, numcols) = size(x)
 
     Sp = spacetype(M)
-    E == scalartype(M) || throw(
-        ArgumentError("scalar type should match mpo scalartype $E ≠ $(scalartype(M))")
-    )
+    E == scalartype(M) ||
+        throw(ArgumentError("scalar type should match mpo scalartype $E ≠ $(scalartype(M))"))
     numrows == numcols || throw(ArgumentError("mpos have to be square"))
 
     domspaces = PeriodicArray{Union{Missing,Sp}}(missing, period, numrows)
@@ -147,25 +146,16 @@ function SparseMPO(x::AbstractArray{Union{E,M},3}) where {M<:MPOTensor,E<:Number
                 p = space(x[i, j, k], 2)
 
                 ismissing(pspaces[i]) && (pspaces[i] = p)
-                pspaces[i] != p && throw(
-                    ArgumentError(
-                        "physical space for $((i,j,k)) incompatible : $(pspaces[i]) ≠ $(p)",
-                    ),
-                )
+                pspaces[i] != p &&
+                    throw(ArgumentError("physical space for $((i,j,k)) incompatible : $(pspaces[i]) ≠ $(p)"))
 
                 ismissing(domspaces[i, j]) && (domspaces[i, j] = dom)
-                domspaces[i, j] != dom && throw(
-                    ArgumentError(
-                        "Domspace for $((i,j,k)) incompatible : $(domspaces[i,j]) ≠ $(dom)",
-                    ),
-                )
+                domspaces[i, j] != dom &&
+                    throw(ArgumentError("Domspace for $((i,j,k)) incompatible : $(domspaces[i,j]) ≠ $(dom)"))
 
                 ismissing(domspaces[i + 1, k]) && (domspaces[i + 1, k] = im')
-                domspaces[i + 1, k] != im' && throw(
-                    ArgumentError(
-                        "Imspace for $((i,j,k)) incompatible : $(domspaces[i+1,k]) ≠ $(im')",
-                    ),
-                )
+                domspaces[i + 1, k] != im' &&
+                    throw(ArgumentError("Imspace for $((i,j,k)) incompatible : $(domspaces[i+1,k]) ≠ $(im')"))
 
                 #if it's zero -> store zero
                 #if it's the identity -> store identity
@@ -185,11 +175,8 @@ function SparseMPO(x::AbstractArray{Union{E,M},3}) where {M<:MPOTensor,E<:Number
 
                     ismissing(domspaces[i + 1, k]) &&
                         (domspaces[i + 1, k] = domspaces[i, j])
-                    domspaces[i + 1, k] != domspaces[i, j] && throw(
-                        ArgumentError(
-                            "Identity incompatible at $((i,j,k)) : $(domspaces[i+1,k]) ≠ $(domspaces[i,j])",
-                        ),
-                    )
+                    domspaces[i + 1, k] != domspaces[i, j] &&
+                        throw(ArgumentError("Identity incompatible at $((i,j,k)) : $(domspaces[i+1,k]) ≠ $(domspaces[i,j])"))
                     _can_unambiguously_braid(domspaces[i, j]) ||
                         throw(ArgumentError("ambiguous identity operator $((i,j,k))"))
                 elseif !ismissing(domspaces[i + 1, k])
@@ -197,11 +184,8 @@ function SparseMPO(x::AbstractArray{Union{E,M},3}) where {M<:MPOTensor,E<:Number
                     isstopped = false
 
                     ismissing(domspaces[i, j]) && (domspaces[i, j] = domspaces[i + 1, k])
-                    domspaces[i + 1, k] != domspaces[i, j] && throw(
-                        ArgumentError(
-                            "Identity incompatible at $((i,j,k)) : $(domspaces[i+1,k]) ≠ $(domspaces[i,j])",
-                        ),
-                    )
+                    domspaces[i + 1, k] != domspaces[i, j] &&
+                        throw(ArgumentError("Identity incompatible at $((i,j,k)) : $(domspaces[i+1,k]) ≠ $(domspaces[i,j])"))
                     _can_unambiguously_braid(domspaces[i, j]) ||
                         throw(ArgumentError("ambiguous identity operator $((i,j,k))"))
                 end
@@ -214,10 +198,9 @@ function SparseMPO(x::AbstractArray{Union{E,M},3}) where {M<:MPOTensor,E<:Number
 
     sum(ismissing.(pspaces)) == 0 ||
         throw(ArgumentError("Not all physical spaces were assigned"))
-    
-    
+
     replace!(domspaces, missing => oneunit(Sp))
-    
+
     # for loc in 1:period, j in 1:numrows
     #     ismissing(domspaces[loc, j]) || continue
     #     domspaces[loc, j] = oneunit(Sp) # all(iszero.(x[loc,j,:])) ? zero(Sp) : oneunit(Sp)
@@ -229,7 +212,7 @@ function SparseMPO(x::AbstractArray{Union{E,M},3}) where {M<:MPOTensor,E<:Number
 
     τtype = TensorKit.BraidingTensor{Sp,TensorKit.storagetype(M)}
     ttype = Union{M,τtype}
-    
+
     blockt = map(1:period) do i
         P = SumSpace(npspaces[i])
         Vₗ = SumSpace(ndomspaces[i, :]...)
@@ -250,7 +233,7 @@ function SparseMPO(x::AbstractArray{Union{E,M},3}) where {M<:MPOTensor,E<:Number
         end
         return tdst
     end
-    
+
     return InfiniteMPO{eltype(blockt)}(PeriodicArray(blockt))
 end
 
@@ -284,11 +267,10 @@ checks if ham[:,i,i] = 1 for every i
 "
 function isid(ham::SparseMPO, i::Int)
     E = scalartype(ham)
-    return reduce(
-        (a, b) -> a && isscal(ham, b, i, i) && abs(ham.Os[b, i, i] - one(E)) < 1e-14,
-        1:(ham.period);
-        init=true,
-    )
+    return reduce((a, b) -> a && isscal(ham, b, i, i) &&
+                                abs(ham.Os[b, i, i] - one(E)) < 1e-14,
+                  1:(ham.period);
+                  init=true)
 end
 
 "
@@ -309,53 +291,56 @@ function isid(x::MPOTensor; tol=Defaults.tolgauge)
     return norm(diff) < tol, scal
 end
 
-function Base.:*(b::SparseMPO{T}, a::SparseMPO{T}) where {T}
-    error("not implemented")
-    # TODO: implement
-    # nodim = a.odim * b.odim
-    # indmap = LinearIndices((a.odim, b.odim))
-    # nOs = PeriodicArray{Union{E,T},3}(fill(zero(E), a.period, nodim, nodim))
+# Linear Algebra
+# --------------
+function Base.:*(O::InfiniteMPO, ψ::InfiniteMPS)
+    length(O) == length(ψ) || throw(ArgumentError("period mismatch"))
 
-    # fusers = PeriodicArray(
-    #     map(product(1:(a.period), 1:(a.odim), 1:(b.odim))) do (pos, i, j)
-    #         return isomorphism(
-    #             storagetype(T),
-    #             fuse(a.domspaces[pos, i] * b.domspaces[pos, j]),
-    #             a.domspaces[pos, i] * b.domspaces[pos, j],
-    #         )
-    #     end,
-    # )
+    Fs = PeriodicArray(fuser.(scalartype(ψ), left_virtualspace.(ψ.AL),
+                              left_virtualspace.(parent(O))))
 
-    # ndomspaces = PeriodicArray{S,2}(undef, a.period, nodim)
-    # for pos in 1:(a.period), i in 1:(a.odim), j in 1:(b.odim)
-    #     ndomspaces[pos, indmap[i, j]] = codomain(fusers[pos, i, j])
-    # end
+    al = map(1:length(O)) do i
+        @plansor t[-1 -2; -3] := ψ.AL[i][1 2; 3] * O[i][4 -2; 2 5] * Fs[i][-1; 1 4] *
+                                 conj(Fs[i + 1][-3; 3 5])
+    end
+    return InfiniteMPS(al)
+end
+function Base.:*(b::H, a::H) where {H<:InfiniteMPO}
+    T = eltype(b.data)
+    S = spacetype(T)
+    period(b) == period(a) ||
+        throw(ArgumentError("periodicity should match: $(period(b)) ≠ $(period(a))"))
 
-    # for pos in 1:(a.period), (i, j) in keys(a[pos]), (k, l) in keys(b[pos])
-    #     if isscal(a[pos], i, j) && isscal(b[pos], k, l)
-    #         nOs[pos, indmap[i, k], indmap[j, l]] = a.Os[pos, i, j] * b.Os[pos, k, l]
-    #     else
-    #         @plansor nOs[pos, indmap[i, k], indmap[j, l]][-1 -2; -3 -4] :=
-    #             fusers[pos, i, k][
-    #                 -1
-    #                 1 2
-    #             ] *
-    #             conj(fusers[pos + 1, j, l][
-    #                 -4
-    #                 3 4
-    #             ]) *
-    #             a[pos][i, j][
-    #                 1 5
-    #                 -3 3
-    #             ] *
-    #             b[pos][k, l][
-    #                 2 -2
-    #                 5 4
-    #             ]
-    #     end
-    # end
+    E = promote_type(scalartype(b), scalartype(a))
+    Fs = PeriodicArray(fuser.(E, left_virtualspace.(parent(a)),
+                              left_virtualspace.(parent(b))))
 
-    # return SparseMPO{S,T,E}(nOs, ndomspaces, a.pspaces)
+    C = similar(b.data)
+    for i in 1:period(b)
+        C[i] = similar(b[i],
+                       space(Fs[i], 1) ⊗ physicalspace(b, i) ←
+                       physicalspace(a, i) ⊗ space(Fs[i + 1], 1))
+        @plansor C[i][-1 -2; -3 -4] = Fs[i][-1; 1 2] * a[i][1 5; -3 3] * b[i][2 -2; 5 4] *
+                                      conj(Fs[i + 1][-4; 3 4])
+        if eltype(H) <: SparseMPOTensor
+            println("hi")
+            # restore sparsity -> when both factors are braidingtensors, we know that the
+            # result can again be represented as a braidingtensor
+            cinds = CartesianIndices((size(a[i], 1), size(b[i], 1)))
+            for j in axes(C[i], 1), k in axes(C[i], 4)
+                rowinds = cinds[j]
+                colinds = cinds[k]
+                Ia = CartesianIndex(rowinds[1], 1, 1, colinds[1])
+                Ib = CartesianIndex(rowinds[2], 1, 1, colinds[2])
+                if (haskey(a[i], Ia) && a[i][Ia] isa TensorKit.BraidingTensor) &&
+                   (haskey(b[i], Ib) && b[i][Ib] isa TensorKit.BraidingTensor)
+                    V = getsubspace(space(C[i]), CartesianIndex(j, 1, 1, k))
+                    C[i][j, 1, 1, k] = TensorKit.BraidingTensor{S,Matrix{E}}(V[2], V[1])
+                end
+            end
+        end
+    end
+    return InfiniteMPO(C)
 end
 
 # without the copy, we get side effects when repeating + setindex
@@ -372,9 +357,9 @@ end
 
 function Base.convert(::Type{DenseMPO}, s::SparseMPO)
     return InfiniteMPO(map(Base.Fix1(convert, MPOTensor{spacetype(s)}), s.data))
-    
+
     # embeds = PeriodicArray(_embedders.([s[i].domspaces for i in 1:length(s)]))
-    
+
     # data = PeriodicArray(
     #     map(1:size(s, 1)) do loc
     #         return mapreduce(+, Iterators.product(1:(s.odim), 1:(s.odim))) do (i, j)
@@ -410,33 +395,33 @@ end
 Prune all branches of the finite state machine that do not contribute. Additionally, attempt
 to compact the representation as much as possible.
 """
-function remove_orphans!(smpo::SparseMPO; tol=eps(real(scalartype(smpo)))^(3/4))
+function remove_orphans!(smpo::SparseMPO; tol=eps(real(scalartype(smpo)))^(3 / 4))
     # drop zeros
     for slice in parent(smpo)
         for (key, val) in nonzero_pairs(slice)
             norm(val) < tol && delete!(slice, key)
         end
     end
-    
+
     # drop dead starts/ends
     changed = true
     while changed
         changed = false
-        
+
         for i in 1:length(smpo)
             # slice empty columns on right or empty rows on left
             mask = filter(1:size(smpo[i], 4)) do j
                 return j ∈ getindex.(nonzero_keys(smpo[i]), 1) ||
-                    j ∈ getindex.(nonzero_keys(smpo[i + 1]), 4)
+                       j ∈ getindex.(nonzero_keys(smpo[i + 1]), 4)
             end
             changed |= length(mask) == size(smpo[i], 4)
             smpo[i] = smpo[i][:, :, :, mask]
             smpo[i + 1] = smpo[i + 1][mask, :, :, :]
         end
-        
+
         # for (i, slice) in enumerate(parent(smpo))
         #     nz_keys = nonzero_keys(slice)
-            
+
         #     # remove rows of previous site that lead to dead end
         #     setdiff!(zero_cols[i], [x[4] for x in nz_keys])
         #     if !isempty(zero_cols[i])
@@ -447,7 +432,7 @@ function remove_orphans!(smpo::SparseMPO; tol=eps(real(scalartype(smpo)))^(3/4))
         #             end
         #         end
         #     end
-            
+
         #     # remove cols of next site that come from dead end
         #     empty_rows = setdiff(1:size(slice, 1), [x[1] for x in nz_keys])
         #     if !isempty(empty_rows)
@@ -460,14 +445,14 @@ function remove_orphans!(smpo::SparseMPO; tol=eps(real(scalartype(smpo)))^(3/4))
         #     end
         # end
     end
-    
+
     return smpo
-    
+
     # # slice out empty rows and columns
     # for i in 1:length(smpo)
     #     empty_cols = setdiff(1:size(smpo[i], 4), [x[4] for x in nz_keys]
     # end
-    
+
     # @warn "not implemented"
     # return smpo
     # changed = false # if I change the mpo somewhere in the method, then I will return remove_orphans(changed_mpo)
@@ -530,8 +515,8 @@ function add_physical_charge(O::InfiniteMPO, charges::AbstractVector{I}) where {
         F = unitary(O_new.pspaces[i] ← O.pspaces[i] ⊗ auxspaces[i])
         for (j, k) in MPSKit.opkeys(O_new[i])
             @plansor begin
-                O_new[i][j, k][-1 -2; -3 -4] :=
-                    F[-2; 1 2] * O[i][j, k][-1 1; 4 3] * τ[3 2; 5 -4] * conj(F[-3; 4 5])
+                O_new[i][j, k][-1 -2; -3 -4] := F[-2; 1 2] * O[i][j, k][-1 1; 4 3] *
+                                                τ[3 2; 5 -4] * conj(F[-3; 4 5])
             end
         end
     end

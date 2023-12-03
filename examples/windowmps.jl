@@ -3,13 +3,13 @@ using MPSKit, MPSKitModels, TensorKit, Plots
 let
     #defining the hamiltonian
     th = nonsym_ising_ham(; lambda=0.3)
-    (sx, sy, sz) = nonsym_spintensors(1//2)
+    sx, sy, sz = nonsym_spintensors(1 // 2)
 
     #initilizing a random mps
     ts = InfiniteMPS([ℂ^2], [ℂ^12])
 
     #Finding the groundstate
-    (ts, envs, _) = find_groundstate(ts, th, VUMPS(; maxiter=400))
+    ts, envs, _ = find_groundstate(ts, th, VUMPS(; maxiter=400))
 
     len = 20
     deltat = 0.05

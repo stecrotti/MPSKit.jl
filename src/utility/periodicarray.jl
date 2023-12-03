@@ -29,8 +29,9 @@ See also [`PeriodicVector`](@ref), [`PeriodicMatrix`](@ref)
 struct PeriodicArray{T,N} <: AbstractArray{T,N}
     data::Array{T,N}
 end
-PeriodicArray(data::AbstractArray{T,N}) where {T,N} = PeriodicArray{T,N}(convert(Array{T,N}, data))
-
+function PeriodicArray(data::AbstractArray{T,N}) where {T,N}
+    return PeriodicArray{T,N}(convert(Array{T,N}, data))
+end
 
 function PeriodicArray{T}(initializer, args...) where {T}
     return PeriodicArray(Array{T}(initializer, args...))
@@ -70,9 +71,8 @@ end
 # ------------
 Base.BroadcastStyle(::Type{T}) where {T<:PeriodicArray} = Broadcast.ArrayStyle{T}()
 
-function Base.similar(
-    bc::Broadcast.Broadcasted{<:Broadcast.ArrayStyle{<:PeriodicArray}}, ::Type{T}
-) where {T}
+function Base.similar(bc::Broadcast.Broadcasted{<:Broadcast.ArrayStyle{<:PeriodicArray}},
+                      ::Type{T}) where {T}
     return PeriodicArray(similar(Array{T}, axes(bc)))
 end
 

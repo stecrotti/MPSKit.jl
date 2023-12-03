@@ -11,28 +11,23 @@
 """
 function approximate end
 
-function approximate(
-    state::InfiniteMPS,
-    toapprox::Tuple{<:Union{SparseMPO,DenseMPO},<:InfiniteMPS},
-    alg,
-    envs=environments(state, toapprox),
-)
+function approximate(state::InfiniteMPS,
+                     toapprox::Tuple{<:Union{SparseMPO,DenseMPO},<:InfiniteMPS},
+                     alg,
+                     envs=environments(state, toapprox))
     # PeriodicMPO's always act on MPSMultiline's. I therefore convert the imps to multilines, approximate and convert back
-    (multi, envs) = approximate(
-        convert(MPSMultiline, state),
-        (convert(MPOMultiline, envs.opp), convert(MPSMultiline, envs.above)),
-        alg,
-        envs,
-    )
+    (multi, envs) = approximate(convert(MPSMultiline, state),
+                                (convert(MPOMultiline, envs.opp),
+                                 convert(MPSMultiline, envs.above)),
+                                alg,
+                                envs)
     state = convert(InfiniteMPS, multi)
     return (state, envs)
 end
-function approximate(
-    state::MPSMultiline,
-    toapprox::Tuple{<:MPOMultiline,<:MPSMultiline},
-    alg::VUMPS,
-    envs=environments(state, toapprox),
-)
+function approximate(state::MPSMultiline,
+                     toapprox::Tuple{<:MPOMultiline,<:MPSMultiline},
+                     alg::VUMPS,
+                     envs=environments(state, toapprox))
     galerkin = calc_galerkin(state, envs)
     iter = 1
 
@@ -42,12 +37,10 @@ function approximate(
     while true
         _, tol_gauge, tol_envs = updatetols(alg, iter, galerkin)
         @sync for col in 1:size(state, 2)
-            Threads.@spawn $temp_ACs[:, col] = circshift(
-                [ac_proj(row, $col, $state, $envs) for row in 1:size($state, 1)], 1
-            )
-            Threads.@spawn $temp_Cs[:, col] = circshift(
-                [c_proj(row, $col, $state, $envs) for row in 1:size($state, 1)], 1
-            )
+            Threads.@spawn $temp_ACs[:, col] = circshift([ac_proj(row, $col, $state, $envs)
+                                                          for row in 1:size($state, 1)], 1)
+            Threads.@spawn $temp_Cs[:, col] = circshift([c_proj(row, $col, $state, $envs)
+                                                         for row in 1:size($state, 1)], 1)
         end
 
         for row in 1:size(state, 1), col in 1:size(state, 2)
@@ -56,13 +49,12 @@ function approximate(
             temp_ACs[row, col] = QAc * adjoint(Qc)
         end
 
-        state = MPSMultiline(
-            temp_ACs, state.CR[:, end]; tol=tol_gauge, maxiter=alg.orthmaxiter
-        )
+        state = MPSMultiline(temp_ACs, state.CR[:, end]; tol=tol_gauge,
+                             maxiter=alg.orthmaxiter)
         recalculate!(envs, state; tol=tol_envs)
 
-        (state, envs) =
-            alg.finalize(iter, state, toapprox, envs)::Tuple{typeof(state),typeof(envs)}
+        (state, envs) = alg.finalize(iter, state, toapprox,
+                                     envs)::Tuple{typeof(state),typeof(envs)}
 
         galerkin = calc_galerkin(state, envs)
         alg.verbose && @info "vomps @iteration $(iter) galerkin = $(galerkin)"

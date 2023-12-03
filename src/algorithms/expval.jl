@@ -1,69 +1,50 @@
 #works for general tensors
-function expectation_value(
-    state::Union{InfiniteMPS,WindowMPS,FiniteMPS}, opp::AbstractTensorMap
-)
+function expectation_value(state::Union{InfiniteMPS,WindowMPS,FiniteMPS},
+                           opp::AbstractTensorMap)
     return expectation_value(state, fill(opp, length(state)))
 end
-function expectation_value(
-    state::Union{InfiniteMPS,WindowMPS,FiniteMPS}, opps::AbstractArray{<:AbstractTensorMap}
-)
+function expectation_value(state::Union{InfiniteMPS,WindowMPS,FiniteMPS},
+                           opps::AbstractArray{<:AbstractTensorMap})
     map(zip(state.AC, opps)) do (ac, opp)
-        tr(
-            ac' * transpose(
-                opp * transpose(
-                    ac, ((TensorKit.allind(ac)[2:(end - 1)]), (1, TensorKit.numind(ac)))
-                ),
-                (
-                    (TensorKit.numind(ac) - 1, TensorKit.allind(ac)[1:(end - 2)]...),
-                    (TensorKit.numind(ac),),
-                ),
-            ),
-        )
+        return tr(ac' * transpose(opp * transpose(ac,
+                                                  ((TensorKit.allind(ac)[2:(end - 1)]),
+                                                   (1, TensorKit.numind(ac)))),
+                                  ((TensorKit.numind(ac) - 1,
+                                    TensorKit.allind(ac)[1:(end - 2)]...),
+                                   (TensorKit.numind(ac),))))
     end
 end
 
 """
 calculates the expectation value of op, where op is a plain tensormap where the first index works on site at
 """
-function expectation_value(
-    state::Union{FiniteMPS{T},WindowMPS{T},InfiniteMPS{T}}, op::AbstractTensorMap, at::Int
-) where {T<:MPSTensor}
+function expectation_value(state::Union{FiniteMPS{T},WindowMPS{T},InfiniteMPS{T}},
+                           op::AbstractTensorMap, at::Int) where {T<:MPSTensor}
     return expectation_value(state, decompose_localmpo(add_util_leg(op)), at)
 end
 
 """
 calculates the expectation value of op = op1*op2*op3*... (ie an N site operator) starting at site at
 """
-function expectation_value(
-    state::Union{FiniteMPS{T},WindowMPS{T},InfiniteMPS{T}},
-    op::AbstractArray{<:AbstractTensorMap},
-    at::Int,
-) where {T<:MPSTensor}
+function expectation_value(state::Union{FiniteMPS{T},WindowMPS{T},InfiniteMPS{T}},
+                           op::AbstractArray{<:AbstractTensorMap},
+                           at::Int) where {T<:MPSTensor}
     firstspace = _firstspace(first(op))
-    (firstspace == oneunit(firstspace) && _lastspace(last(op)) == firstspace') || throw(
-        ArgumentError(
-            "localmpo should start and end in a trivial leg, not with $(firstspace)"
-        ),
-    )
+    (firstspace == oneunit(firstspace) && _lastspace(last(op)) == firstspace') ||
+        throw(ArgumentError("localmpo should start and end in a trivial leg, not with $(firstspace)"))
 
     ut = fill_data!(similar(op[1], firstspace), one)
-    @plansor v[-1 -2; -3] :=
-        isomorphism(
-            storagetype(T),
-            left_virtualspace(state, at - 1),
-            left_virtualspace(state, at - 1),
-        )[
-            -1
-            -3
-        ] * conj(ut[-2])
-    tmp =
-        v * TransferMatrix(
-            state.AL[at:(at + length(op) - 1)], op, state.AL[at:(at + length(op) - 1)]
-        )
+    @plansor v[-1 -2; -3] := isomorphism(storagetype(T),
+                                         left_virtualspace(state, at - 1),
+                                         left_virtualspace(state, at - 1))[-1
+                                                                           -3] *
+                             conj(ut[-2])
+    tmp = v * TransferMatrix(state.AL[at:(at + length(op) - 1)], op,
+                             state.AL[at:(at + length(op) - 1)])
     return @plansor tmp[1 2; 3] *
-        ut[2] *
-        state.CR[at + length(op) - 1][3; 4] *
-        conj(state.CR[at + length(op) - 1][1; 4])
+                    ut[2] *
+                    state.CR[at + length(op) - 1][3; 4] *
+                    conj(state.CR[at + length(op) - 1][1; 4])
 end
 
 """
@@ -91,40 +72,29 @@ end
 function expectation_value(state::FiniteMPS, ham::MPOHamiltonian, envs::FinEnv)
     return expectation_value_fimpl(state, ham, envs)
 end
-function expectation_value_fimpl(
-    state::AbstractFiniteMPS, ham::MPOHamiltonian, envs::FinEnv
-)
+function expectation_value_fimpl(state::AbstractFiniteMPS, ham::MPOHamiltonian,
+                                 envs::FinEnv)
     exp_density = zeros(scalartype(state), length(state))
     for i in 1:length(state)
         # first row - terms starting at site i
         # last column - terms ending at site i
         # top right - single site terms
         # @info "computing $i"
-        exp_density[i] =
-            (
-                contract_expval(
-                    state.AC[i],
-                    leftenv(envs, i, state)[1, 1, 1],
-                    rightenv(envs, i, state)[1, 2:(end - 1), 1],
-                    ham[i][1, 1, 1, 2:(end - 1)],
-                ) + contract_expval(
-                    state.AC[i],
-                    leftenv(envs, i, state)[1, 2:(end - 1), 1],
-                    rightenv(envs, i, state)[1, end, 1],
-                    ham[i][2:(end - 1), 1, 1, end],
-                    state.AC[i],
-                )
-            ) / 2 + contract_expval(
-                state.AC[i],
-                leftenv(envs, i, state)[1, 1, 1],
-                rightenv(envs, i, state)[1, end, 1],
-                ham[i][1, 1, 1, end],
-                state.AC[i],
-            )
+        exp_density[i] = (contract_expval(state.AC[i],
+                                          leftenv(envs, i, state)[1, 1, 1],
+                                          rightenv(envs, i, state)[1, 2:(end - 1), 1],
+                                          ham[i][1, 1, 1, 2:(end - 1)]) +
+                          contract_expval(state.AC[i],
+                                          leftenv(envs, i, state)[1, 2:(end - 1), 1],
+                                          rightenv(envs, i, state)[1, end, 1],
+                                          ham[i][2:(end - 1), 1, 1, end],
+                                          state.AC[i])) / 2 + contract_expval(state.AC[i],
+                                                                              leftenv(envs, i, state)[1, 1, 1],
+                                                                              rightenv(envs, i, state)[1, end, 1],
+                                                                              ham[i][1, 1, 1, end],
+                                                                              state.AC[i])
     end
-    
-    
-    
+
     # ens = zeros(scalartype(state), length(state))
     # for i in 1:length(state), (j, k) in keys(ham[i])
     #     !((j == 1 && k != 1) || (k == ham.odim && j != ham.odim)) && continue
@@ -149,35 +119,33 @@ function expectation_value(Ψ::InfiniteMPS, H::MPOHamiltonian, envs::MPOHamInfEn
     len = length(Ψ)
     ens = PeriodicArray(zeros(scalartype(Ψ.AR[1]), len))
     for i in 1:len
-        util = convert(BlockTensorMap, fill_data!(similar(Ψ.AL[1], space(envs.lw[i + 1][1, end, 1], 2)), one))
+        util = convert(BlockTensorMap,
+                       fill_data!(similar(Ψ.AL[1], space(envs.lw[i + 1][1, end, 1], 2)),
+                                  one))
         apl = leftenv(envs, i, Ψ) * TransferMatrix(Ψ.AL[i], H[i][:, 1, 1, end], Ψ.AL[i])
         ρ = convert(BlockTensorMap, r_LL(Ψ, i))
         ens[i] = @plansor apl[1 2; 3] * ρ[3; 1] * conj(util[2])
     end
-    
+
     return ens
 end
 
 #the mpo hamiltonian over n sites has energy f+n*edens, which is what we calculate here. f can then be found as this - n*edens
-function expectation_value(
-    st::InfiniteMPS, prevca::MPOHamInfEnv, range::Union{UnitRange{Int},Int}
-)
+function expectation_value(st::InfiniteMPS, prevca::MPOHamInfEnv,
+                           range::Union{UnitRange{Int},Int})
     return expectation_value(st, prevca.opp, range, prevca)
 end
-function expectation_value(
-    st::InfiniteMPS, ham::MPOHamiltonian, range::Int, prevca=environments(st, ham)
-)
+function expectation_value(st::InfiniteMPS, ham::MPOHamiltonian, range::Int,
+                           prevca=environments(st, ham))
     return expectation_value(st, ham, 1:range, prevca)
 end
-function expectation_value(
-    st::InfiniteMPS,
-    ham::MPOHamiltonian,
-    range::UnitRange{Int},
-    prevca=environments(st, ham),
-)
+function expectation_value(st::InfiniteMPS,
+                           ham::MPOHamiltonian,
+                           range::UnitRange{Int},
+                           prevca=environments(st, ham))
     start = map(leftenv(prevca, range.start, st)) do y
-        @plansor x[-1 -2; -3] :=
-            y[1 -2; 3] * st.CR[range.start - 1][3; -3] * conj(st.CR[range.start - 1][1; -1])
+        @plansor x[-1 -2; -3] := y[1 -2; 3] * st.CR[range.start - 1][3; -3] *
+                                 conj(st.CR[range.start - 1][1; -1])
     end
 
     for i in range
@@ -205,10 +173,10 @@ function expectation_value(st::MPSMultiline, opp::MPOMultiline, ca::PerMPOInfEnv
     retval = PeriodicArray{scalartype(st.AC[1, 1]),2}(undef, size(st, 1), size(st, 2))
     for (i, j) in product(1:size(st, 1), 1:size(st, 2))
         retval[i, j] = @plansor leftenv(ca, i, j, st)[1 2; 3] *
-            opp[i, j][2 4; 6 5] *
-            st.AC[i, j][3 6; 7] *
-            rightenv(ca, i, j, st)[7 5; 8] *
-            conj(st.AC[i + 1, j][1 4; 8])
+                                opp[i, j][2 4; 6 5] *
+                                st.AC[i, j][3 6; 7] *
+                                rightenv(ca, i, j, st)[7 5; 8] *
+                                conj(st.AC[i + 1, j][1 4; 8])
     end
     return retval
 end
@@ -218,19 +186,18 @@ function expectation_value(state::FiniteQP, opp::MPOHamiltonian)
     return expectation_value(convert(FiniteMPS, state), opp)
 end
 
-function contract_expval(A::MPSTensor{S}, GL::MPSTensor{S}, GR::MPSTensor{S}, O::MPOTensor{S}, Ā::MPSTensor{S}=A) where {S}
+function contract_expval(A::MPSTensor{S}, GL::MPSTensor{S}, GR::MPSTensor{S},
+                         O::MPOTensor{S}, Ā::MPSTensor{S}=A) where {S}
     return @plansor GL[1 2; 3] * A[3 7; 5] * GR[5 8; 6] * O[2 4; 7 8] * conj(Ā[1 4; 6])
 end
-function contract_expval(
-    A::MPSTensor{S},
-    GL::AbstractMPSTensor{S},
-    GR::AbstractMPSTensor{S},
-    O::BlockTensorMap{S,2,2},
-    Ā::MPSTensor{S}=A,
-) where {S}
+function contract_expval(A::MPSTensor{S},
+                         GL::AbstractMPSTensor{S},
+                         GR::AbstractMPSTensor{S},
+                         O::BlockTensorMap{S,2,2},
+                         Ā::MPSTensor{S}=A) where {S}
     return @plansor convert(BlockTensorMap, GL)[1 2; 3] *
-        convert(BlockTensorMap, A)[3 7; 5] *
-        convert(BlockTensorMap, GR)[5 8; 6] *
-        O[2 4; 7 8] *
-        conj(convert(BlockTensorMap, Ā)[1 4; 6])
+                    convert(BlockTensorMap, A)[3 7; 5] *
+                    convert(BlockTensorMap, GR)[5 8; 6] *
+                    O[2 4; 7 8] *
+                    conj(convert(BlockTensorMap, Ā)[1 4; 6])
 end

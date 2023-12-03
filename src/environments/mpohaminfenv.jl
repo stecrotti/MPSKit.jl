@@ -18,20 +18,18 @@ function Base.copy(p::MPOHamInfEnv)
 end
 
 function gen_lw_rw(st::InfiniteMPS, ham::Union{SparseMPO,MPOHamiltonian})
-    lw = PeriodicArray(
-        map(st.AL, ham) do al, h
-            V_mps = SumSpace(_firstspace(al))
-            V_mpo = space(h, 1)
-            return BlockTensorMap(undef, scalartype(st), V_mps ⊗ V_mpo' ← V_mps)
-        end,
-    )
-    rw = PeriodicArray(
-        map(st.AR, ham) do ar, h
-            V_mps = SumSpace(_lastspace(ar)')
-            V_mpo = space(h, 4)
-            return BlockTensorMap(undef, scalartype(st), V_mps ⊗ V_mpo' ← V_mps)
-        end,
-    )
+    lw = PeriodicArray(map(st.AL, ham) do al, h
+                           V_mps = SumSpace(_firstspace(al))
+                           V_mpo = space(h, 1)
+                           return BlockTensorMap(undef, scalartype(st),
+                                                 V_mps ⊗ V_mpo' ← V_mps)
+                       end)
+    rw = PeriodicArray(map(st.AR, ham) do ar, h
+                           V_mps = SumSpace(_lastspace(ar)')
+                           V_mpo = space(h, 4)
+                           return BlockTensorMap(undef, scalartype(st),
+                                                 V_mps ⊗ V_mpo' ← V_mps)
+                       end)
 
     # lw = PeriodicArray{A,2}(undef, ham.odim, length(st))
     # rw = PeriodicArray{A,2}(undef, ham.odim, length(st))
@@ -52,8 +50,10 @@ function gen_lw_rw(st::InfiniteMPS, ham::Union{SparseMPO,MPOHamiltonian})
 end
 
 #randomly initialize envs
-function environments(st::InfiniteMPS, ham::MPOHamiltonian, above=nothing; solver=Defaults.linearsolver)
-    (isnothing(above) || above === st) || throw(ArgumentError("MPOHamiltonian requires top and bottom states to be equal."))
+function environments(st::InfiniteMPS, ham::MPOHamiltonian, above=nothing;
+                      solver=Defaults.linearsolver)
+    (isnothing(above) || above === st) ||
+        throw(ArgumentError("MPOHamiltonian requires top and bottom states to be equal."))
     lw, rw = gen_lw_rw(st, ham)
     envs = MPOHamInfEnv(ham, similar(st), solver, lw, rw, ReentrantLock())
     return recalculate!(envs, st)
@@ -94,9 +94,8 @@ function recalculate!(envs::MPOHamInfEnv, nstate; tol=envs.solver.tol)
     return envs
 end
 
-function calclw!(
-    fixpoints, st::InfiniteMPS, ham::MPOHamiltonian; solver=Defaults.linearsolver
-)
+function calclw!(fixpoints, st::InfiniteMPS, ham::MPOHamiltonian;
+                 solver=Defaults.linearsolver)
     len = length(st)
     @assert len == length(ham)
 
@@ -114,28 +113,25 @@ function calclw!(
 
         if isone(ham, i) # identity matrices; do the hacky renormalization
             tm = regularize(TransferMatrix(st.AL, st.AL), l_LL(st), r_LL(st))
-            fixpoints[1][1, i, 1], convhist = linsolve(
-                flip(tm), fixpoints[1][1, i, 1], prev, solver, 1, -1
-            )
+            fixpoints[1][1, i, 1], convhist = linsolve(flip(tm), fixpoints[1][1, i, 1],
+                                                       prev, solver, 1, -1)
             convhist.converged == 0 && @info "calclw failed to converge $(convhist.normres)"
 
             (len > 1) && left_cyclethrough!(i, fixpoints, ham, st)
 
             # go through the unitcell, again subtracting fixpoints
             for potato in 1:len
-                @plansor fixpoints[potato][i][-1 -2; -3] -=
-                    fixpoints[potato][i][1 -2; 2] *
-                    r_LL(st, potato - 1)[2; 1] *
-                    l_LL(st, potato)[-1; -3]
+                @plansor fixpoints[potato][i][-1 -2; -3] -= fixpoints[potato][i][1 -2; 2] *
+                                                            r_LL(st, potato - 1)[2; 1] *
+                                                            l_LL(st, potato)[-1; -3]
             end
 
         else
             if iszero(ham, i)
                 diag = map(b -> b[1, i, i, 1], ham[:])
                 tm = TransferMatrix(st.AL, diag, st.AL)
-                fixpoints[1][1, i, 1], convhist = linsolve(
-                    flip(tm), fixpoints[1][1, i, 1], prev, solver, 1, -1
-                )
+                fixpoints[1][1, i, 1], convhist = linsolve(flip(tm), fixpoints[1][1, i, 1],
+                                                           prev, solver, 1, -1)
                 convhist.converged == 0 &&
                     @info "calclw failed to converge $(convhist.normres)"
             end
@@ -146,9 +142,8 @@ function calclw!(
     return fixpoints
 end
 
-function calcrw!(
-    fixpoints, st::InfiniteMPS, ham::MPOHamiltonian; solver=Defaults.linearsolver
-)
+function calcrw!(fixpoints, st::InfiniteMPS, ham::MPOHamiltonian;
+                 solver=Defaults.linearsolver)
     len = length(st)
     @assert len == length(ham)
     odim = length(right_virtualspace(ham, len))
@@ -168,27 +163,25 @@ function calcrw!(
 
         if isone(ham, i) # identity matrices; do the hacky renormalization
             tm = regularize(TransferMatrix(st.AR, st.AR), l_RR(st), r_RR(st))
-            fixpoints[end][1, i, 1], convhist = linsolve(
-                tm, fixpoints[end][1, i, 1], prev, solver, 1, -1
-            )
+            fixpoints[end][1, i, 1], convhist = linsolve(tm, fixpoints[end][1, i, 1], prev,
+                                                         solver, 1, -1)
             convhist.converged == 0 && @info "calcrw failed to converge $(convhist.normres)"
 
             len > 1 && right_cyclethrough!(i, fixpoints, ham, st)
 
             #go through the unitcell, again subtracting fixpoints
             for potatoe in 1:len
-                @plansor fixpoints[potatoe][i][-1 -2; -3] -=
-                    fixpoints[potatoe][i][1 -2; 2] *
-                    l_RR(st, potatoe + 1)[2; 1] *
-                    r_RR(st, potatoe)[-1; -3]
+                @plansor fixpoints[potatoe][i][-1 -2; -3] -= fixpoints[potatoe][i][1 -2;
+                                                                                   2] *
+                                                             l_RR(st, potatoe + 1)[2; 1] *
+                                                             r_RR(st, potatoe)[-1; -3]
             end
         else
             if iszero(ham, i)
                 diag = map(b -> b[1, i, i, 1], ham[:])
                 tm = TransferMatrix(st.AR, diag, st.AR)
-                fixpoints[end][1, i, 1], convhist = linsolve(
-                    tm, fixpoints[end][1, i, 1], prev, solver, 1, -1
-                )
+                fixpoints[end][1, i, 1], convhist = linsolve(tm, fixpoints[end][1, i, 1],
+                                                             prev, solver, 1, -1)
                 convhist.converged == 0 &&
                     @info "calcrw failed to converge $(convhist.normres)"
             end
@@ -238,7 +231,7 @@ end
 function right_cyclethrough!(index::Int, fp::PeriodicArray{T,1}, ham, st) where {T}
     for i in reverse(1:length(fp))
         zerovector!(fp[i - 1][index])
-        
+
         transfer = TransferMatrix(st.AR[i], ham[i][index, 1, 1, index:end], st.AR[i])
         fp[i - 1][index] = transfer * fp[i][1, index:end, 1]
 

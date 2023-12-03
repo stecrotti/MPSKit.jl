@@ -47,7 +47,6 @@ using BlockTensorKit
 # force_planar(mpo::DenseMPO) = DenseMPO(force_planar.(mpo.data))
 force_planar(x) = x
 
-
 # Toy models
 # ----------
 using LinearAlgebra: Diagonal
@@ -106,11 +105,9 @@ function classical_ising()
 end
 
 function sixvertex(; a=1.0, b=1.0, c=1.0)
-    d = ComplexF64[
-        a 0 0 0
-        0 c b 0
-        0 b c 0
-        0 0 0 a
-    ]
+    d = ComplexF64[a 0 0 0
+                   0 c b 0
+                   0 b c 0
+                   0 0 0 a]
     return DenseMPO(permute(TensorMap(d, ℂ^2 ⊗ ℂ^2, ℂ^2 ⊗ ℂ^2), ((1, 2), (4, 3))))
 end
