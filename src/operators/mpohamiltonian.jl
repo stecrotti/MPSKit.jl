@@ -324,8 +324,6 @@ function Base.conj(a::MPOHamiltonian)
                           end)
 end
 
-
-
 Base.convert(::Type{DenseMPO}, H::MPOHamiltonian) = convert(DenseMPO, convert(SparseMPO, H))
 Base.convert(::Type{SparseMPO}, H::MPOHamiltonian{T}) where {T} = InfiniteMPO{T}(H.data)
 

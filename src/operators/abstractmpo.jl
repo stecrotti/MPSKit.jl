@@ -37,7 +37,6 @@ TensorKit.space(O::AbstractMPO, i::Int) = physicalspace(O, i)
 left_virtualsize(H::AbstractMPO, i::Int) = left_virtualsize(H[i])
 right_virtualsize(H::AbstractMPO, i::Int) = right_virtualsize(H[i])
 
-
 TensorKit.spacetype(::Union{O,Type{O}}) where {O<:AbstractMPO} = spacetype(tensortype(O))
 TensorKit.sectortype(::Union{O,Type{O}}) where {O<:AbstractMPO} = sectortype(tensortype(O))
 function TensorKit.storagetype(::Union{O,Type{O}}) where {O<:AbstractMPO}

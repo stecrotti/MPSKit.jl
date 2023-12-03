@@ -41,9 +41,10 @@ end
     @test dot(ts_small, ts_small2) ≈ dot(ts_small, ts_small)
 end
 
-@testset "InfiniteMPS ($(sectortype(D)), $elt)" for (D, d, elt) in [(ℙ^10, ℙ^2, ComplexF64),
-                                                                    (Rep[U₁](1 => 3), Rep[U₁](0 => 1),
-                                                                     ComplexF64)]
+@testset "InfiniteMPS ($(sectortype(D)), $elt)" for (D, d, elt) in
+                                                    [(ℙ^10, ℙ^2, ComplexF64),
+                                                     (Rep[U₁](1 => 3), Rep[U₁](0 => 1),
+                                                      ComplexF64)]
     tol = Float64(eps(real(elt)) * 100)
 
     ts = InfiniteMPS([TensorMap(rand, elt, D * d, D), TensorMap(rand, elt, D * d, D)];
