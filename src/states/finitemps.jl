@@ -414,71 +414,74 @@ No support yet for converting the scalar type, also no in-place operations
 Base.:*(Ψ::FiniteMPS, a::Number) = rmul!(copy(Ψ), a)
 Base.:*(a::Number, Ψ::FiniteMPS) = lmul!(a, copy(Ψ))
 
-function Base.:+(Ψ₁::MPS, Ψ₂::MPS) where {MPS<:FiniteMPS}
-    length(Ψ₁) == length(Ψ₂) ||
-        throw(DimensionMismatch("Cannot add states of length $(length(Ψ₁)) and $(length(Ψ₂))"))
-    @assert length(Ψ₁) > 1 "not implemented for length < 2"
+function Base.:+(ψ₁::MPS, ψ₂::MPS) where {MPS<:FiniteMPS}
+    length(ψ₁) == length(ψ₂) ||
+        throw(DimensionMismatch("Cannot add states of length $(length(ψ₁)) and $(length(ψ₂))"))
+    @assert length(ψ₁) > 1 "not implemented for length < 2"
 
-    Ψ = similar(Ψ₁)
-    halfN = div(length(Ψ), 2)
+    ψ = similar(ψ₁)
+    fill!(ψ.ALs, missing)
+    fill!(ψ.ARs, missing)
+    fill!(ψ.ACs, missing)
+    fill!(ψ.CLs, missing)
+
+    halfN = div(length(ψ), 2)
 
     # left half
-    F₁ = isometry(storagetype(Ψ),
-                  (_lastspace(Ψ₁.AL[1]) ⊕ _lastspace(Ψ₂.AL[1]))',
-                  _lastspace(Ψ₁.AL[1])')
+    F₁ = isometry(storagetype(ψ), (_lastspace(ψ₁.AL[1]) ⊕ _lastspace(ψ₂.AL[1]))',
+                  _lastspace(ψ₁.AL[1])')
     F₂ = leftnull(F₁)
-    @assert _lastspace(F₂) == _lastspace(Ψ₂.AL[1])
+    @assert _lastspace(F₂) == _lastspace(ψ₂.AL[1])
 
-    AL = Ψ₁.AL[1] * F₁' + Ψ₂.AL[1] * F₂'
-    Ψ.ALs[1], R = leftorth!(AL)
+    AL = ψ₁.AL[1] * F₁' + ψ₂.AL[1] * F₂'
+    ψ.ALs[1], R = leftorth!(AL)
 
     for i in 2:halfN
-        AL₁ = _transpose_front(F₁ * _transpose_tail(Ψ₁.AL[i]))
-        AL₂ = _transpose_front(F₂ * _transpose_tail(Ψ₂.AL[i]))
+        AL₁ = _transpose_front(F₁ * _transpose_tail(ψ₁.AL[i]))
+        AL₂ = _transpose_front(F₂ * _transpose_tail(ψ₂.AL[i]))
 
-        F₁ = isometry(storagetype(Ψ), _lastspace(AL₁) ⊕ _lastspace(Ψ₂.AL[i]),
-                      _lastspace(AL₁))
+        F₁ = isometry(storagetype(ψ), (_lastspace(AL₁) ⊕ _lastspace(ψ₂.AL[i]))',
+                      _lastspace(AL₁)')
         F₂ = leftnull(F₁)
-        @assert _lastspace(F₂) == ⊗(_lastspace(Ψ₂.AL[i]))
+        @assert _lastspace(F₂) == _lastspace(ψ₂.AL[i])
 
         AL = _transpose_front(R * _transpose_tail(AL₁ * F₁' + AL₂ * F₂'))
-        Ψ.ALs[i], R = leftorth!(AL′)
+        ψ.ALs[i], R = leftorth!(AL)
     end
 
-    C₁ = F₁ * Ψ₁.CR[halfN]
-    C₂ = F₂ * Ψ₂.CR[halfN]
+    C₁ = F₁ * ψ₁.CR[halfN]
+    C₂ = F₂ * ψ₂.CR[halfN]
 
     # right half
-    F₁ = isometry(storagetype(Ψ),
-                  _firstspace(Ψ₁.AR[end]) ⊕ _firstspace(Ψ₂.AR[end]),
-                  _firstspace(Ψ₁.AR[end]))
+    F₁ = isometry(storagetype(ψ), _firstspace(ψ₁.AR[end]) ⊕ _firstspace(ψ₂.AR[end]),
+                  _firstspace(ψ₁.AR[end]))
     F₂ = leftnull(F₁)
-    @assert _lastspace(F₂) == _firstspace(Ψ₂.AR[end])'
+    @assert _lastspace(F₂) == _firstspace(ψ₂.AR[end])'
 
-    AR = F₁ * _transpose_tail(Ψ₁.AR[end]) + F₂ * _transpose_tail(Ψ₂.AR[end])
+    AR = F₁ * _transpose_tail(ψ₁.AR[end]) + F₂ * _transpose_tail(ψ₂.AR[end])
     L, AR′ = rightorth!(AR)
-    Ψ.ARs[end] = _transpose_front(AR′)
+    ψ.ARs[end] = _transpose_front(AR′)
 
-    for i in Iterators.reverse((halfN + 1):(length(Ψ) - 1))
-        AR₁ = _transpose_tail(Ψ₁.AR[i] * F₁')
-        AR₂ = _transpose_tail(Ψ₂.AR[i] * F₂')
+    for i in Iterators.reverse((halfN + 1):(length(ψ) - 1))
+        AR₁ = _transpose_tail(ψ₁.AR[i] * F₁')
+        AR₂ = _transpose_tail(ψ₂.AR[i] * F₂')
 
-        F₁ = isometry(storagetype(Ψ), _firstspace(Ψ₁.AR[i]) ⊕ _firstspace(AR₂),
-                      _firstspace(Ψ₁.AR[i]))
+        F₁ = isometry(storagetype(ψ), _firstspace(ψ₁.AR[i]) ⊕ _firstspace(AR₂),
+                      _firstspace(ψ₁.AR[i]))
         F₂ = leftnull(F₁)
         @assert _lastspace(F₂) == _firstspace(AR₂)'
 
         AR = _transpose_tail(_transpose_front(F₁ * AR₁ + F₂ * AR₂) * L)
         L, AR′ = rightorth!(AR)
-        Ψ.ARs[i] = _transpose_front(AR′)
+        ψ.ARs[i] = _transpose_front(AR′)
     end
 
     # center
     C₁ = C₁ * F₁'
     C₂ = C₂ * F₂'
-    Ψ.CLs[halfN + 1] = R * (C₁ + C₂) * L
+    ψ.CLs[halfN + 1] = R * (C₁ + C₂) * L
 
-    return Ψ
+    return ψ
 end
 
 Base.:-(Ψ₁::FiniteMPS, Ψ₂::FiniteMPS) = Ψ₁ + (-1 * Ψ₂)
