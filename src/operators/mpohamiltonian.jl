@@ -143,23 +143,13 @@ checks if ham[:,i,i] = 1 for every i
 "
 function Base.isone(H::MPOHamiltonian, i::Int)
     I = CartesianIndex(i, 1, 1, i)
-    for i in 1:(period(H))
-        if !(haskey(H[i], I) && H[i][I] isa TensorKit.BraidingTensor)
-            return false
-        end
-    end
-    return true
+    return all(x -> haskey(x, I) && ismpoidentity(x[I]), parent(H))
 end
 
 function Base.iszero(H::MPOHamiltonian, i::Int)
     I = CartesianIndex(i, 1, 1, i)
-    for h in H.data
-        I in keys(parent(h)) && return false
-    end
-    return true
+    return any(x -> !haskey(x, I), parent(H))
 end
-
-
 
 # addition / substraction
 Base.:-(H::MPOHamiltonian) = -one(scalartype(H)) * H
@@ -181,7 +171,7 @@ Base.:-(a::MPOHamiltonian, e::AbstractVector) = a + (-e)
 
 # Base.:+(a::H1, b::H2) where {H1<:MPOHamiltonian,H2<:MPOHamiltonian} = +(promote(a, b)...)
 function Base.:+(a::MPOHamiltonian{T}, b::MPOHamiltonian{T}) where {T}
-    period(a) == period(b) ||
+    length(a) == length(b) ||
         throw(ArgumentError("periodicity should match $(period(a)) ≠ $(period(b))"))
 
     # @assert sanitycheck(a) "a is not a valid hamiltonian"
@@ -338,14 +328,14 @@ end
 
 # promotion and conversion
 # ------------------------
-function Base.promote_rule(::Type{<:MPOHamiltonian{T₁}},
-                           ::Type{<:MPOHamiltonian{T₂}}) where {T₁,T₂}
+function Base.promote_rule(::Type{MPOHamiltonian{T₁}},
+                           ::Type{MPOHamiltonian{T₂}}) where {T₁,T₂}
     return MPOHamiltonian{promote_type(T₁, T₂)}
 end
 
 function Base.convert(::Type{MPOHamiltonian{T}}, x::MPOHamiltonian) where {T}
     typeof(x) == MPOHamiltonian{T} && return x
-    return MPOHamiltonian{T}(convert.(T, x.data))
+    return MPOHamiltonian(convert.(T, x.data))
 end
 
 # Utility
