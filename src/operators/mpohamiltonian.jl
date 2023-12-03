@@ -46,7 +46,7 @@ function MPOHamiltonian(data::AbstractArray{Union{T,E},3}) where {T<:MPOTensor,E
     physicalspaces, virtualspaces = _deduce_spaces(data)
 
     # construct blocktensors
-    τtype = TensorKit.BraidingTensor{S,TensorKit.storagetype(T)}
+    τtype = BraidingTensor{S,storagetype(T)}
     ttype = Union{T,τtype}
 
     Ws = map(1:L) do i
@@ -154,8 +154,7 @@ end
 # addition / substraction
 Base.:-(H::MPOHamiltonian) = -one(scalartype(H)) * H
 function Base.:+(H::MPOHamiltonian, λs::AbstractVector{<:Number})
-    length(λs) == period(H) ||
-        throw(ArgumentError("periodicity should match $(period(H)) ≠ $(length(λs))"))
+    check_length(H, λs)
     H′ = copy(H)
 
     foreach(H′.data, λs) do h, λ
@@ -171,8 +170,7 @@ Base.:-(a::MPOHamiltonian, e::AbstractVector) = a + (-e)
 
 # Base.:+(a::H1, b::H2) where {H1<:MPOHamiltonian,H2<:MPOHamiltonian} = +(promote(a, b)...)
 function Base.:+(a::MPOHamiltonian{T}, b::MPOHamiltonian{T}) where {T}
-    length(a) == length(b) ||
-        throw(ArgumentError("periodicity should match $(period(a)) ≠ $(period(b))"))
+    check_length(a, b)
 
     # @assert sanitycheck(a) "a is not a valid hamiltonian"
     # @assert sanitycheck(b) "b is not a valid hamiltonian"
@@ -271,15 +269,14 @@ end
 function Base.:*(b::H, a::H) where {H<:MPOHamiltonian}
     T = eltype(b.data)
     S = spacetype(T)
-    period(b) == period(a) ||
-        throw(ArgumentError("periodicity should match: $(period(b)) ≠ $(period(a))"))
+    check_length(b, a)
 
     E = promote_type(scalartype(b), scalartype(a))
     Fs = PeriodicArray(fuser.(E, left_virtualspace.(parent(a)),
                               left_virtualspace.(parent(b))))
 
     C = similar(b.data)
-    for i in 1:period(b)
+    for i in 1:length(b)
         C[i] = T(undef,
                  space(Fs[i], 1) ⊗ physicalspace(b, i) ←
                  physicalspace(a, i) ⊗ space(Fs[i + 1], 1))

@@ -168,3 +168,14 @@ function fuser(::Type{T}, V1::SumSpace{S}, V2::SumSpace{S}) where {T<:Number,S<:
 
     return F
 end
+
+"""
+    check_length(A, B)
+
+Check if the length of two arrays match, throwing a `DimensionMismatch` if not.
+"""
+function check_length(A, B)
+    length(A) == length(B) ||
+        throw(DimensionMismatch("Lengths should match: $(length(A)) ≠ $(length(B))"))
+    return nothing
+end
