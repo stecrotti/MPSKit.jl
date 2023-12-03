@@ -74,7 +74,7 @@ Compute the action of the zero-site derivative on a vector `x`.
 """
 function ∂C(x::MPSBondTensor, GL::AbstractMPSTensor, GR::AbstractMPSTensor)
     @plansor y[-1; -2] := GL[-1 3; 1] * x[1; 2] * GR[2 3; -2]
-    return y::typeof(x)
+    return convert(typeof(x), y)
 end
 function ∂C(x::RecursiveVec, GL, GR)
     return RecursiveVec(circshift(map(∂C, x.vecs, GL, GR), 1))
@@ -88,7 +88,7 @@ Compute the action of the one-site derivative on a vector `x`.
 function ∂AC(x::AbstractMPSTensor, O::AbstractMPOTensor,
              GL::AbstractMPSTensor, GR::AbstractMPSTensor)
     @plansor y[-1 -2; -3] := GL[-1 2; 1] * x[1 3; 4] * O[2 -2; 3 5] * GR[4 5; -3]
-    return y::typeof(x)
+    return convert(typeof(x), y)
 end
 function ∂AC(x::RecursiveVec, O, GL, GR)
     return RecursiveVec(circshift(map(∂AC, x.vecs, O, GL, GR), 1))
@@ -104,13 +104,11 @@ function ∂AC2(x::AbstractMPOTensor, O₁::AbstractMPOTensor, O₂::AbstractMPO
               GL::AbstractMPSTensor, GR::AbstractMPSTensor)
     @plansor y[-1 -2; -3 -4] := x[6 5; 1 3] * O₁[7 -2; 5 4] * O₂[4 -4; 3 2] *
                                 GL[-1 7; 6] * GR[1 2; -3]
-    return y::typeof(x)
+    return convert(typeof(x), y)
 end
 function ∂AC2(x::RecursiveVec, O₁, O₂, GL, GR)
     return RecursiveVec(circshift(map(∂AC2, x.vecs, O₁, O₂, GL, GR)), 1)
 end
-
-
 
 #downproject for approximate
 function c_proj(pos, below, envs::FinEnv)

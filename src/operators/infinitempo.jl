@@ -305,6 +305,8 @@ end
 # Utility
 # -------
 
+Base.eltype(::Type{InfiniteMPO{T}}) where {T} = T
+
 """
     remove_orphans(mpo::SparseMPO)
 
@@ -323,7 +325,6 @@ function remove_orphans!(O::SparseMPO; tol=eps(real(scalartype(O)))^(3 / 4))
     changed = true
     while changed
         changed = false
-
         for i in 1:length(O)
             # slice empty columns on right or empty rows on left
             mask = filter(1:size(O[i], 4)) do j

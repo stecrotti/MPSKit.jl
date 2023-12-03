@@ -51,6 +51,8 @@ function Base.getproperty(H::MPOHamiltonian, sym::Symbol)
     end
 end
 
+Base.eltype(::Type{MPOHamiltonian{T}}) where {T} = T
+
 function MPOHamiltonian(t::TensorMap{S,N,N}) where {S,N}
     V₀ = oneunit(S)
     P = space(t, 1)
@@ -120,19 +122,6 @@ function MPOHamiltonian(x::Array{T,1}) where {T<:MPOTensor{Sp}} where {Sp}
     return MPOHamiltonian(SparseMPO(nOs))
 end
 
-left_virtualdim(H::MPOHamiltonian, i::Int) = size(H[i], 1)
-right_virtualdim(H::MPOHamiltonian, i::Int) = size(H[i], 4)
-
-Base.getindex(x::MPOHamiltonian, a) = x.data[a];
-
-Base.eltype(x::MPOHamiltonian) = eltype(x.data)
-VectorInterface.scalartype(::Type{MPOHamiltonian{T}}) where {T} = scalartype(T)
-Base.size(x::MPOHamiltonian) = (x.period, x.odim, x.odim)
-Base.size(x::MPOHamiltonian, i) = size(x)[i]
-Base.length(x::MPOHamiltonian) = length(x.data)
-TensorKit.space(x::MPOHamiltonian, i) = space(x.data, i)
-Base.copy(x::MPOHamiltonian) = MPOHamiltonian(copy(x.data))
-Base.iterate(x::Union{MPOHamiltonian,InfiniteMPO}, args...) = iterate(x.data, args...)
 "
 checks if ham[:,i,i] = 1 for every i
 "
@@ -335,7 +324,7 @@ function Base.conj(a::MPOHamiltonian)
                           end)
 end
 
-Base.lastindex(h::MPOHamiltonian) = lastindex(h.data);
+
 
 Base.convert(::Type{DenseMPO}, H::MPOHamiltonian) = convert(DenseMPO, convert(SparseMPO, H))
 Base.convert(::Type{SparseMPO}, H::MPOHamiltonian{T}) where {T} = InfiniteMPO{T}(H.data)
@@ -362,4 +351,18 @@ end
 function Base.convert(::Type{MPOHamiltonian{T}}, x::MPOHamiltonian) where {T}
     typeof(x) == MPOHamiltonian{T} && return x
     return MPOHamiltonian{T}(convert.(T, x.data))
+end
+
+# Utility
+# -------
+
+function isjordanstructure(O::SparseMPOTensor)
+    # check for identity blocks
+    ismpoidentity(O[1, 1, 1, 1]) || return false
+    ismpoidentity(O[end, 1, 1, end]) || return false
+    # check upper triangular
+    for I in nonzero_keys(O)
+        I[1] <= I[4] || return false
+    end
+    return true
 end
