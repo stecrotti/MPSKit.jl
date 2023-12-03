@@ -28,218 +28,89 @@ Base.:*(h::Union{MPO_∂∂C,MPO_∂∂AC,MPO_∂∂AC2}, v) = h(v);
 (h::MPO_∂∂AC2)(x) = ∂AC2(x, h.o1, h.o2, h.leftenv, h.rightenv)
 
 # draft operator constructors
-function ∂∂C(pos::Int, mps, opp::Union{MPOHamiltonian,SparseMPO,DenseMPO}, cache)
-    return MPO_∂∂C(leftenv(cache, pos + 1, mps), rightenv(cache, pos, mps))
+function ∂∂C(pos::Int, mps, ::AbstractMPO, envs)
+    return MPO_∂∂C(leftenv(envs, pos + 1, mps), rightenv(envs, pos, mps))
 end
-function ∂∂C(col::Int, mps, opp::MPOMultiline, envs)
+function ∂∂C(col::Int, mps, ::MPOMultiline, envs)
     return MPO_∂∂C(leftenv(envs, col + 1, mps), rightenv(envs, col, mps))
 end
-function ∂∂C(row::Int, col::Int, mps, opp::MPOMultiline, envs)
+function ∂∂C(row::Int, col::Int, mps, ::MPOMultiline, envs)
     return MPO_∂∂C(leftenv(envs, row, col + 1, mps), rightenv(envs, row, col, mps))
 end
 
-function ∂∂AC(pos::Int, mps, opp::Union{MPOHamiltonian,SparseMPO,DenseMPO}, cache)
-    return MPO_∂∂AC(cache.opp[pos], leftenv(cache, pos, mps), rightenv(cache, pos, mps))
+function ∂∂AC(pos::Int, mps, O::AbstractMPO, envs)
+    return MPO_∂∂AC(O[pos], leftenv(envs, pos, mps), rightenv(envs, pos, mps))
 end
-function ∂∂AC(row::Int, col::Int, mps, opp::MPOMultiline, envs)
-    return MPO_∂∂AC(envs.opp[row, col], leftenv(envs, row, col, mps),
+function ∂∂AC(row::Int, col::Int, mps, O::MPOMultiline, envs)
+    return MPO_∂∂AC(O[row, col], leftenv(envs, row, col, mps),
                     rightenv(envs, row, col, mps))
-end;
-function ∂∂AC(col::Int, mps, opp::MPOMultiline, envs)
-    return MPO_∂∂AC(envs.opp[:, col], leftenv(envs, col, mps), rightenv(envs, col, mps))
-end;
-
-function ∂∂AC2(pos::Int, mps, opp::Union{MPOHamiltonian,SparseMPO,DenseMPO}, cache)
-    return MPO_∂∂AC2(cache.opp[pos],
-                     cache.opp[pos + 1],
-                     leftenv(cache, pos, mps),
-                     rightenv(cache, pos + 1, mps))
-end;
-function ∂∂AC2(col::Int, mps, opp::MPOMultiline, envs)
-    return MPO_∂∂AC2(envs.opp[:, col],
-                     envs.opp[:, col + 1],
-                     leftenv(envs, col, mps),
-                     rightenv(envs, col + 1, mps))
 end
-function ∂∂AC2(row::Int, col::Int, mps, opp::MPOMultiline, envs)
-    return MPO_∂∂AC2(envs.opp[row, col],
-                     envs.opp[row, col + 1],
-                     leftenv(envs, row, col, mps),
-                     rightenv(envs, row, col + 1, mps))
+function ∂∂AC(col::Int, mps, O::MPOMultiline, envs)
+    return MPO_∂∂AC(O[:, col], leftenv(envs, col, mps), rightenv(envs, col, mps))
 end
 
-#allow calling them with CartesianIndices
-∂∂C(pos::CartesianIndex, mps, opp, envs) = ∂∂C(Tuple(pos)..., mps, opp, envs)
-∂∂AC(pos::CartesianIndex, mps, opp, envs) = ∂∂AC(Tuple(pos)..., mps, opp, envs)
-∂∂AC2(pos::CartesianIndex, mps, opp, envs) = ∂∂AC2(Tuple(pos)..., mps, opp, envs)
+function ∂∂AC2(pos::Int, mps, O::AbstractMPO, envs)
+    return MPO_∂∂AC2(O[pos], O[pos + 1],
+                     leftenv(envs, pos, mps), rightenv(envs, pos + 1, mps))
+end
+function ∂∂AC2(col::Int, mps, O::MPOMultiline, envs)
+    return MPO_∂∂AC2(O[:, col], O[:, col + 1],
+                     leftenv(envs, col, mps), rightenv(envs, col + 1, mps))
+end
+function ∂∂AC2(row::Int, col::Int, mps, O::MPOMultiline, envs)
+    return MPO_∂∂AC2(O[row, col], O[row, col + 1],
+                     leftenv(envs, row, col, mps), rightenv(envs, row, col + 1, mps))
+end
+
+# allow calling them with CartesianIndices
+∂∂C(pos::CartesianIndex, mps, O, envs) = ∂∂C(Tuple(pos)..., mps, O, envs)
+∂∂AC(pos::CartesianIndex, mps, O, envs) = ∂∂AC(Tuple(pos)..., mps, O, envs)
+∂∂AC2(pos::CartesianIndex, mps, O, envs) = ∂∂AC2(Tuple(pos)..., mps, O, envs)
 
 """
-    One-site derivative
+    ∂C(x::MPSBondTensor, GL::AbstractMPSTensor, rightenv::AbstractMPSTensor)
+    
+Compute the action of the zero-site derivative on a vector `x`.
 """
-
-function ∂AC(x::MPSTensor, ham::SparseMPOSlice, leftenv, rightenv)::typeof(x)
-    local y
-    @static if Defaults.parallelize_derivatives
-        @floop WorkStealingEx() for (i, j) in keys(ham)
-            t = ∂AC(x, ham.Os[i, j], leftenv[i], rightenv[j])
-            @reduce(y = inplace_add!(nothing, t))
-        end
-    else
-        els = collect(keys(ham))
-        y = ∂AC(x, ham.Os[els[1]...], leftenv[els[1][1]], rightenv[els[1][2]])
-        for (i, j) in els[2:end]
-            add!(y, ∂AC(x, ham.Os[i, j], leftenv[i], rightenv[j]))
-        end
-    end
+function ∂C(x::MPSBondTensor, GL::AbstractMPSTensor, GR::AbstractMPSTensor)
+    @plansor y[-1; -2] := GL[-1 3; 1] * x[1; 2] * GR[2 3; -2]
+    return y::typeof(x)
 end
-function ∂AC!(y::T, x::T, O::MPOTensor{S}, leftenv::MPSTensor{S},
-              rightenv::MPSTensor{S}) where {S,T<:MPSTensor{S}}
-    @plansor begin
-        y[-1 -2; -3] = leftenv[-1 2; 1] * x[1 3; 4] * O[2 -2; 3 5] * rightenv[4 5; -3]
-    end
-    return y
-end
-
-function ∂AC(x::MPSTensor{S},
-             O::MPOTensor{S},
-             leftenv::MPSTensor{S},
-             rightenv::MPSTensor{S}) where {S}
-    @plansor begin
-        y[-1 -2; -3] := leftenv[-1 2; 1] * x[1 3; 4] * O[2 -2; 3 5] * rightenv[4 5; -3]
-    end
-    return y
-end
-function ∂AC(x::MPSTensor{S},
-             O::BlockTensorMap{S,2,2},
-             leftenv::BlockTensorMap{S,2,1},
-             rightenv::BlockTensorMap{S,2,1}) where {S}
-    x′ = convert(BlockTensorMap, x) # TODO: this should not be necessary?
-    @plansor begin
-        y[-1 -2; -3] := leftenv[-1 2; 1] * x′[1 3; 4] * O[2 -2; 3 5] * rightenv[4 5; -3]
-    end
-    return x isa BlockTensorMap ? y : only(y)
-end
-
-# mpo multiline
-function ∂AC(x::RecursiveVec, opp, leftenv, rightenv)
-    return RecursiveVec(circshift(map(t -> ∂AC(t...), zip(x.vecs, opp, leftenv, rightenv)),
-                                  1))
-end
-
-function ∂AC(x::MPSTensor, ::Nothing, leftenv, rightenv)
-    return _transpose_front(leftenv * _transpose_tail(x * rightenv))
+function ∂C(x::RecursiveVec, GL, GR)
+    return RecursiveVec(circshift(map(∂C, x.vecs, GL, GR), 1))
 end
 
 """
-    Two-site derivative
+    ∂AC(x::AbstractMPSTensor, O::AbstractMPOTensor, GL::AbstractMPSTensor, GR::AbstractMPSTensor)
+
+Compute the action of the one-site derivative on a vector `x`.
 """
-function ∂AC2(x::MPOTensor, h1::SparseMPOSlice, h2::SparseMPOSlice, leftenv,
-              rightenv)::typeof(x)
-    local toret
-
-    tl = tensormaptype(spacetype(x), 2, 3, storagetype(x))
-    hl = Vector{Union{Nothing,tl}}(undef, h1.odim)
-    @threads for j in 1:(h1.odim)
-        @floop WorkStealingEx() for i in keys(h1, :, j)
-            if isscal(h1, i, j)
-                @plansor t[-1 -2; -3 -4 -5] := (h1.Os[i, j] * leftenv[i])[-1 1; 2] *
-                                               τ[1 -2; 3 -5] * x[2 3; -3 -4]
-            else
-                @plansor t[-1 -2; -3 -4 -5] := leftenv[i][-1 1; 2] * h1[i, j][1 -2; 3 -5] *
-                                               x[2 3; -3 -4]
-            end
-            @reduce(curel = inplace_add!(nothing, t))
-        end
-        hl[j] = curel
-    end
-
-    @floop WorkStealingEx() for (j, k) in keys(h2)
-        isnothing(hl[j]) && continue
-
-        if isscal(h2, j, k)
-            @plansor t[-1 -2; -3 -4] := (h2.Os[j, k] * hl[j])[-1 -2; 5 3 4] * τ[4 -4; 3 6] *
-                                        rightenv[k][5 6; -3]
-        else
-            @plansor t[-1 -2; -3 -4] := hl[j][-1 -2; 5 3 4] * h2[j, k][4 -4; 3 6] *
-                                        rightenv[k][5 6; -3]
-        end
-
-        @reduce(toret = inplace_add!(nothing, t))
-    end
-
-    return toret
+function ∂AC(x::AbstractMPSTensor, O::AbstractMPOTensor,
+             GL::AbstractMPSTensor, GR::AbstractMPSTensor)
+    @plansor y[-1 -2; -3] := GL[-1 2; 1] * x[1 3; 4] * O[2 -2; 3 5] * GR[4 5; -3]
+    return y::typeof(x)
 end
-function ∂AC2(x::MPOTensor, opp1::MPOTensor, opp2::MPOTensor, leftenv, rightenv)
-    @plansor toret[-1 -2; -3 -4] := leftenv[-1 7; 6] *
-                                    x[6 5; 1 3] *
-                                    opp1[7 -2; 5 4] *
-                                    opp2[4 -4; 3 2] *
-                                    rightenv[1 2; -3]
-end
-# function ∂AC2(x::MPOTensor, ::Nothing, ::Nothing, leftenv, rightenv)
-#     @plansor y[-1 -2; -3 -4] := x[1 -2; 2 -4] * leftenv[-1; 1] * rightenv[2; -3]
-# end
-
-# function ∂AC2(x::RecursiveVec, opp1, opp2, leftenv, rightenv)
-#     return RecursiveVec(
-#         circshift(map(t -> ∂AC2(t...), zip(x.vecs, opp1, opp2, leftenv, rightenv)), 1)
-#     )
-# end
-function ∂AC2(x::MPOTensor{S}, O1::AbstractMPOTensor{S}, O2::AbstractMPOTensor{S},
-              leftenv::AbstractMPSTensor{S}, rightenv::AbstractMPSTensor{S}) where {S}
-    x′ = convert(BlockTensorMap, x) # TODO: this should not be necessary?
-    @plansor y[-1 -2; -3 -4] := leftenv[-1 7; 6] *
-                                x′[6 5; 1 3] *
-                                O1[7 -2; 5 4] *
-                                O2[4 -4; 3 2] *
-                                rightenv[1 2; -3]
-    return x isa BlockTensorMap ? y : only(y)
+function ∂AC(x::RecursiveVec, O, GL, GR)
+    return RecursiveVec(circshift(map(∂AC, x.vecs, O, GL, GR), 1))
 end
 
 """
-    Zero-site derivative (the C matrix to the right of pos)
+    ∂AC2(x::AbstractMPSTensor, O₁::AbstractMPOTensor, O₂::AbstractMPOTensor,
+          GL::AbstractMPSTensor, GR::AbstractMPSTensor)
+
+Compute the action of the two-site derivative on a vector `x`.
 """
-function ∂C(x::MPSBondTensor, leftenv::AbstractVector, rightenv::AbstractVector)::typeof(x)
-    if Defaults.parallelize_derivatives
-        @floop WorkStealingEx() for (le, re) in zip(leftenv, rightenv)
-            t = ∂C(x, le, re)
-            @reduce(y = inplace_add!(nothing, t))
-        end
-    else
-        y = ∂C(x, leftenv[1], rightenv[1])
-        for (le, re) in zip(leftenv[2:end], rightenv[2:end])
-            VectorInterface.add!(y, ∂C(x, le, re))
-        end
-    end
-
-    return y
+function ∂AC2(x::AbstractMPOTensor, O₁::AbstractMPOTensor, O₂::AbstractMPOTensor,
+              GL::AbstractMPSTensor, GR::AbstractMPSTensor)
+    @plansor y[-1 -2; -3 -4] := x[6 5; 1 3] * O₁[7 -2; 5 4] * O₂[4 -4; 3 2] *
+                                GL[-1 7; 6] * GR[1 2; -3]
+    return y::typeof(x)
 end
-function ∂C(x::MPSBondTensor{S}, leftenv::MPSTensor{S}, rightenv::MPSTensor{S}) where {S}
-    @plansor begin
-        y[-1; -2] := leftenv[-1 3; 1] * x[1; 2] * rightenv[2 3; -2]
-    end
-    return y
-end
-function ∂C(x::MPSBondTensor{S}, leftenv::BlockTensorMap{S,2,1},
-            rightenv::BlockTensorMap{S,2,1}) where {S}
-    x′ = convert(BlockTensorMap, x)
-    @plansor begin
-        y[-1; -2] := leftenv[-1 3; 1] * x′[1; 2] * rightenv[2 3; -2]
-    end
-    return x isa BlockTensorMap ? y : y[1]
+function ∂AC2(x::RecursiveVec, O₁, O₂, GL, GR)
+    return RecursiveVec(circshift(map(∂AC2, x.vecs, O₁, O₂, GL, GR)), 1)
 end
 
-# function ∂C(x::MPSBondTensor, leftenv::MPSTensor, rightenv::MPSTensor)
-#     @plansor toret[-1; -2] := leftenv[-1 3; 1] * x[1; 2] * rightenv[2 3; -2]
-# end
 
-function ∂C(x::MPSBondTensor, leftenv::MPSBondTensor, rightenv::MPSBondTensor)
-    @plansor toret[-1; -2] := leftenv[-1; 1] * x[1; 2] * rightenv[2; -2]
-end
-
-function ∂C(x::RecursiveVec, leftenv, rightenv)
-    return RecursiveVec(circshift(map(t -> ∂C(t...), zip(x.vecs, leftenv, rightenv)), 1))
-end
 
 #downproject for approximate
 function c_proj(pos, below, envs::FinEnv)
