@@ -36,97 +36,14 @@ end
 
 function InfiniteMPO(data::AbstractArray{Union{T,E},3}) where {T<:MPOTensor,E<:Number}
     @assert scalartype(T) == E "scalar type should match mpo scalartype"
-
-    L, left_virtualsz, right_virtualsz = size(data)
-    @assert left_virtualsz == right_virtualsz "MPOs should be square"
+    L = size(data, 1)
 
     # deduce spaces from tensors
     S = spacetype(T)
-    virtualspaces = PeriodicArray([Vector{Union{Missing,S}}(missing, left_virtualsz)
-                                   for _ in 1:L])
-    physicalspaces = Vector{Union{Missing,S}}(missing, L)
-
-    isused = trues(size(data))
-    ischanged = true
-    while ischanged
-        ischanged = false
-
-        for I in CartesianIndices(data)
-            isused[I] && continue # skip information that is already known
-            i, j, k = I.I
-            if data[I] isa T
-                P = physicalspace(data[I])
-                Vₗ = left_virtualspace(data[I])
-                Vᵣ = right_virtualspace(data[I])
-
-                if ismissing(physicalspaces[i])
-                    physicalspaces[i] = P
-                else
-                    P == physicalspaces[i] ||
-                        throw(ArgumentError("physical space mismatch at $(I.I)"))
-                end
-
-                if ismissing(virtualspaces[i][j])
-                    virtualspaces[i][j] = Vₗ
-                else
-                    Vₗ == virtualspaces[i][j] ||
-                        throw(ArgumentError("left virtual space mismatch at $(I.I)"))
-                end
-
-                if ismissing(virtualspaces[i + 1][k])
-                    virtualspaces[i + 1][k] = Vᵣ
-                else
-                    Vᵣ == virtualspaces[i + 1][k] ||
-                        throw(ArgumentError("right virtual space mismatch at $(I.I)"))
-                end
-                isused[I] = true
-
-                # not necessarily changed, but tensors are only checked first time around
-                # so something should definitely have changed
-                ischanged = true
-
-            elseif !iszero(data[I])
-                ismissing(virtualspaces[i][j]) && ismissing(virtualspaces[i + 1][k]) &&
-                    continue
-
-                if ismissing(virtualspaces[i][j])
-                    # left space can be deduced from right
-                    Vᵣ = virtualspaces[i + 1][k]
-                    Vₗ = Vᵣ
-                    virtualspaces[i][j] = Vₗ
-                    ischanged = true
-                elseif ismissing(virtualspaces[i + 1][k])
-                    # right space can be deduced from left
-                    Vₗ = virtualspaces[i][j]
-                    Vᵣ = Vₗ
-                    virtualspaces[i + 1][k] = Vᵣ
-                    ischanged = true
-                else
-                    # both spaces are assigned
-                    Vₗ = virtualspaces[i][j]
-                    Vᵣ = virtualspaces[i + 1][k]
-                    Vₗ == Vᵣ ||
-                        throw(ArgumentError("virtual space mismatch at $(I.I)"))
-                end
-
-                # check that braiding is possible
-                _can_unambiguously_braid(Vₗ) ||
-                    throw(ArgumentError("Ambiguous braiding operator at $(I.I)"))
-
-                isused[I] = true
-            end
-        end
-    end
-
-    # check that all spaces are assigned
-    for i in 1:L
-        ismissing(physicalspaces[i]) &&
-            throw(ArgumentError("Physical space at $i is not assigned"))
-        replace!(virtualspaces[i], missing => oneunit(S)) # this should not cause problems?
-    end
-
+    physicalspaces, virtualspaces = _deduce_spaces(data)
+    
     # construct blocktensors
-    τtype = TensorKit.BraidingTensor{S,TensorKit.storagetype(M)}
+    τtype = TensorKit.BraidingTensor{S,TensorKit.storagetype(T)}
     ttype = Union{T,τtype}
 
     Ws = map(1:L) do i
@@ -159,49 +76,11 @@ function InfiniteMPO(data::AbstractArray{Union{T,E},3}) where {T<:MPOTensor,E<:N
 end
 
 # Attempt to deduce eltype information for non-strictly typed data
-function InfiniteMPO(data::AbstractArray{<:Any,3})
-    # deduce types
-    tensortypes = Set()
-    scalartypes = Set()
-    for x in data
-        if x isa AbstractTensorMap
-            if numin(x) == numout(x) == 2
-                push!(tensortypes, typeof(x))
-            elseif numin(x) == numout(x) == 1
-                push!(tensortypes, tensormaptype(spacetype(x), 2, 2, scalartype(x)))
-            else
-                throw(ArgumentError("$(typeof(x)) is not an MPO tensor or a single-site tensor"))
-            end
-        elseif x isa Number
-            push!(scalartypes, typeof(x))
-        else
-            ismissing(x) ||
-                throw(ArgumentError("data should only contain mpo tensors or scalars"))
-        end
-    end
-    T = promote_type(tensortypes...)
-    E = promote_type(scalartype(T), scalartypes...)
+InfiniteMPO(data::AbstractArray{<:Any,3}) = InfiniteMPO(_normalize_mpotypes(data))
 
-    # convert data
-    data′ = similar(data, Union{E,T})
-    for (i, x) in enumerate(data)
-        if x isa AbstractTensorMap
-            if numin(x) == numout(x) == 2
-                data′[i] = convert(T, x)
-            elseif numin(x) == numout(x) == 1
-                data′[i] = convert(T, add_util_leg(x))
-            else
-                error("this should not happen")
-            end
-        elseif x isa Number
-            data′[i] = convert(E, x)
-        else
-            data′[i] = zero(E)
-        end
-    end
-
-    return InfiniteMPO(data′)
-end
+# Properties
+# ----------
+Base.parent(O::InfiniteMPO) = O.data
 
 # promotion and conversion
 # ------------------------
@@ -243,7 +122,7 @@ function Base.:*(O::InfiniteMPO, ψ::InfiniteMPS)
 end
 
 Base.:(*)(O₁::InfiniteMPO, O₂::InfiniteMPO) = *(promote(O₁, O₂)...)
-function Base.:*(O₁::H, O₂::H) where {T,H<:InfiniteMPO{T}}
+function Base.:*(O₁::InfiniteMPO{T}, O₂::InfiniteMPO{T}) where {T<:AbstractMPOTensor}
     length(O₁) == length(O₂) ||
         throw(ArgumentError("Period mismatch: $(length(O₁)) ≠ $(length(O₂))"))
 

@@ -2,6 +2,7 @@ module MPSKit
 
 using TensorKit
 using TensorKit: BraidingTensor
+using TensorKit: storagetype
 using TensorOperations
 using TensorOperations: TupleTools
 using BlockTensorKit

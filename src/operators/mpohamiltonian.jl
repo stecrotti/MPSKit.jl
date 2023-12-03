@@ -30,8 +30,82 @@ struct MPOHamiltonian{T<:SparseMPOTensor} <: AbstractMPO
     end
 end
 
+# Constructors
+# ------------
+
 function MPOHamiltonian(data::AbstractVector{<:SparseMPOTensor})
     return MPOHamiltonian(PeriodicArray(data))
+end
+
+function MPOHamiltonian(data::AbstractArray{Union{T,E},3}) where {T<:MPOTensor,E<:Number}
+    @assert scalartype(T) == E "scalar type should match mpo scalartype"
+    L = size(data, 1)
+
+    # deduce spaces from tensors
+    S = spacetype(T)
+    physicalspaces, virtualspaces = _deduce_spaces(data)
+
+    # construct blocktensors
+    τtype = TensorKit.BraidingTensor{S,TensorKit.storagetype(T)}
+    ttype = Union{T,τtype}
+
+    Ws = map(1:L) do i
+        Vₗ = SumSpace(virtualspaces[i]...)
+        Vᵣ = SumSpace(virtualspaces[i + 1]...)
+        P = SumSpace(physicalspaces[i])
+        tdst = BlockTensorMap{S,2,2,ttype}(undef, Vₗ ⊗ P, P ⊗ Vᵣ)
+        for j in axes(data, 2), k in axes(data, 3)
+            if data[i, j, k] isa E
+                iszero(data[i, j, k]) && continue
+                τ = τtype(domain(BlockTensorKit.getsubspace(space(tdst), j, 1, 1, k))...)
+                if isone(data[i, j, k])
+                    tdst[j, 1, 1, k] = τ
+                else
+                    tdst[j, 1, 1, k] = scale!(τ, data[i, j, k])
+                end
+            else
+                if ismpoidentity(data[i, j, k])
+                    tdst[j, 1, 1, k] = τtype(domain(BlockTensorKit.getsubspace(space(tdst),
+                                                                               j, 1, 1, k))...)
+                else
+                    tdst[j, 1, 1, k] = data[i, j, k]
+                end
+            end
+        end
+        return tdst
+    end
+
+    return MPOHamiltonian(Ws)
+end
+
+# Attempt to deduce eltype information for non-strictly typed data
+MPOHamiltonian(data::AbstractArray{<:Any,3}) = MPOHamiltonian(_normalize_mpotypes(data))
+
+# Construct from local operators
+function MPOHamiltonian(local_operator::TensorMap{S,N,N}) where {S,N}
+    return MPOHamiltonian(decompose_localmpo(add_util_leg(local_operator)))
+end
+function MPOHamiltonian(local_mpo::Vector{O}) where {O<:MPOTensor}
+    allequal(physicalspace.(local_mpo)) ||
+        throw(ArgumentError("all physical spaces should be equal"))
+    S = spacetype(O)
+    V₀ = oneunit(S)
+    P = space(t, 1)
+
+    τ = BraidingTensor{S,storagetype(O)}(P, V₀)
+    ttype = Union{O,typeof(τ)}
+
+    Vₗ = push!(left_virtualspace.(local_mpo), dual(right_virtualspace(local_mpo[end])))
+    Vᵣ = pushfirst!(dual.(right_virtualspace.(local_mpo)), left_virtualspace(local_mpo[1]))
+    W = BlockTensorMap{S,2,2,ttype}(undef, SumSpace(Vₗ) ⊗ P, P ⊗ SumSpace(Vᵣ))
+    
+    W[1, 1, 1, 1] = τ
+    W[end, 1, 1, end] = τ
+    for (i, o) in enumerate(local_mpo)
+        W[i, 1, 1, i + 1] = o
+    end
+
+    return MPOHamiltonian([W])
 end
 
 # Properties
@@ -52,35 +126,6 @@ function Base.getproperty(H::MPOHamiltonian, sym::Symbol)
 end
 
 Base.eltype(::Type{MPOHamiltonian{T}}) where {T} = T
-
-function MPOHamiltonian(t::TensorMap{S,N,N}) where {S,N}
-    V₀ = oneunit(S)
-    P = space(t, 1)
-    if N > 1
-        @assert all(isequal(P), space.(Ref(t), 2:N)) "all physical spaces should be equal"
-    end
-
-    τ = TensorKit.BraidingTensor{S,TensorKit.storagetype(t)}(P, V₀)
-    localmpo = decompose_localmpo(add_util_leg(t))
-
-    ttype = Union{eltype(localmpo),typeof(τ)}
-
-    Vₗ = push!(left_virtualspace.(localmpo), dual(right_virtualspace(localmpo[end])))
-    cod = SumSpace(Vₗ) ⊗ P
-    Vᵣ = pushfirst!(dual.(right_virtualspace.(localmpo)), left_virtualspace(localmpo[1]))
-    dom = P ⊗ SumSpace(Vᵣ)
-
-    W = BlockTensorMap{S,2,2,ttype}(undef, cod, dom)
-    W[1, 1, 1, 1] = τ
-    W[end, 1, 1, end] = τ
-
-    for (i, O) in enumerate(localmpo)
-        W[i, 1, 1, i + 1] = O
-    end
-
-    return MPOHamiltonian(PeriodicArray([W]))
-end
-
 Base.parent(H::MPOHamiltonian) = H.data
 
 function Base.show(io::IO, ::MIME"text/plain", H::Union{MPOHamiltonian,SparseMPO})
@@ -91,35 +136,6 @@ function Base.show(io::IO, ::MIME"text/plain", H::Union{MPOHamiltonian,SparseMPO
     println(io, " ⋯")
     foreach(((i, W),) -> println(io, " W[$i] = ", W), enumerate(H.data))
     return nothing
-end
-
-TensorKit.spacetype(::MPOHamiltonian{T}) where {T} = spacetype(T)
-function TensorKit.storagetype(::Union{MPOHamiltonian{T},Type{MPOHamiltonian{T}}}) where {T}
-    return TensorKit.storagetype(T)
-end
-
-virtualdim(H::MPOHamiltonian) = length(left_virtualspace(H, 1))
-period(H::MPOHamiltonian) = length(H.data)
-
-#default constructor
-MPOHamiltonian(x::AbstractArray{<:Any,3}) = MPOHamiltonian(SparseMPO(x).data)
-
-#allow passing in regular tensormaps
-# MPOHamiltonian(t::TensorMap) = MPOHamiltonian(decompose_localmpo(add_util_leg(t)));
-
-#a very simple utility constructor; given our "localmpo", constructs a mpohamiltonian
-function MPOHamiltonian(x::Array{T,1}) where {T<:MPOTensor{Sp}} where {Sp}
-    nOs = PeriodicArray{Union{scalartype(T),T}}(fill(zero(scalartype(T)), 1, length(x) + 1,
-                                                     length(x) + 1))
-
-    for (i, t) in enumerate(x)
-        nOs[1, i, i + 1] = t
-    end
-
-    nOs[1, 1, 1] = one(scalartype(T))
-    nOs[1, end, end] = one(scalartype(T))
-
-    return MPOHamiltonian(SparseMPO(nOs))
 end
 
 "
@@ -143,20 +159,7 @@ function Base.iszero(H::MPOHamiltonian, i::Int)
     return true
 end
 
-"
-to be valid in the thermodynamic limit, these hamiltonians need to have a peculiar structure
-"
-function sanitycheck(ham::MPOHamiltonian)
-    for i in 1:period(ham)
-        ham[i][1, 1, 1, 1] isa TensorKit.BraidingTensor || return false
-        @assert ham[i][end, 1, 1, end] isa TensorKit.BraidingTensor || return false
 
-        for j in 1:(left_virtualdim(ham, i)), k in 1:(j - 1)
-            CartesianIndex(j, 1, 1, k) ∈ keys(ham[i]) || return false
-        end
-    end
-    return true
-end
 
 # addition / substraction
 Base.:-(H::MPOHamiltonian) = -one(scalartype(H)) * H
@@ -181,8 +184,8 @@ function Base.:+(a::MPOHamiltonian{T}, b::MPOHamiltonian{T}) where {T}
     period(a) == period(b) ||
         throw(ArgumentError("periodicity should match $(period(a)) ≠ $(period(b))"))
 
-    @assert sanitycheck(a) "a is not a valid hamiltonian"
-    @assert sanitycheck(b) "b is not a valid hamiltonian"
+    # @assert sanitycheck(a) "a is not a valid hamiltonian"
+    # @assert sanitycheck(b) "b is not a valid hamiltonian"
 
     Hnew = map(a.data, b.data) do h1, h2
         Vₗ₁ = left_virtualspace(h1)
@@ -335,15 +338,9 @@ end
 
 # promotion and conversion
 # ------------------------
-function Base.promote_rule(::Type{<:MPOHamiltonian{<:BlockTensorMap{S,N₁,N₂,T₁,N}}},
-                           ::Type{<:MPOHamiltonian{<:BlockTensorMap{S,N₁,N₂,T₂,N}}}) where {S,
-                                                                                            N₁,
-                                                                                            N₂,
-                                                                                            T₁,
-                                                                                            T₂,
-                                                                                            N}
-    T = promote_type(T₁, T₂)
-    return MPOHamiltonian{BlockTensorMap{S,N₁,N₂,T,N}}
+function Base.promote_rule(::Type{<:MPOHamiltonian{T₁}},
+                           ::Type{<:MPOHamiltonian{T₂}}) where {T₁,T₂}
+    return MPOHamiltonian{promote_type(T₁, T₂)}
 end
 
 function Base.convert(::Type{MPOHamiltonian{T}}, x::MPOHamiltonian) where {T}
@@ -364,3 +361,4 @@ function isjordanstructure(O::SparseMPOTensor)
     end
     return true
 end
+isjordanstructure(O::MPOHamiltonian) = all(isjordanstructure, parent(O))
