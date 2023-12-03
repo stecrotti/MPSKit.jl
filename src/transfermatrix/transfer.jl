@@ -86,7 +86,7 @@ function transfer_right(v::MPOTensor{S}, A::MPSTensor{S}, Ab::MPSTensor{S}) wher
     @plansor t[-1 -2; -3 -4] := A[-1 2; 1] * τ[-2 4; 2 3] * conj(Ab[-4 4; 5]) * v[1 3; -3 5]
 end
 
-#transfer for 2 mpo tensors
+# transfer for 2 mpo tensors
 function transfer_left(v::MPSBondTensor, A::MPOTensor, B::MPOTensor)
     @plansor t[-1; -2] := v[1; 2] * A[2 3; 4 -2] * conj(B[1 3; 4 -1])
 end
@@ -97,6 +97,9 @@ end
 # ----------------------------------------------------
 # | transfers for (vector, operator, tensor, tensor) |
 # ----------------------------------------------------
+
+transfer_left(x, ::Nothing, A, Ā) = transfer_left(x, A, Ā)
+transfer_right(x, ::Nothing, A, Ā) = transfer_right(x, A, Ā)
 
 # mpo transfer
 function transfer_left(x::AbstractMPSTensor, O::AbstractMPOTensor,
