@@ -142,7 +142,7 @@ function squaredenvs(state::AbstractFiniteMPS, H::MPOHamiltonian,
                      envs=environments(state, ham))
     nham = conj(H) * H
     L = length(state)
-    vdim = virtualdim(H)
+    vdim = left_virtualsize(H, 1)
 
     # to construct the squared caches we will first initialize environments
     # then make all data invalid so it will be recalculated

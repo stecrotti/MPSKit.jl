@@ -94,30 +94,30 @@ function recalculate!(envs::MPOHamInfEnv, nstate; tol=envs.solver.tol)
     return envs
 end
 
-function calclw!(fixpoints, st::InfiniteMPS, ham::MPOHamiltonian;
+function calclw!(fixpoints, st::InfiniteMPS, H::MPOHamiltonian;
                  solver=Defaults.linearsolver)
     len = length(st)
-    @assert len == length(ham)
+    @assert len == length(H)
 
     # the start element
-    leftutil = similar(st.AL[1], left_virtualspace(ham, 1)[1])
+    leftutil = similar(st.AL[1], left_virtualspace(H, 1)[1])
     fill_data!(leftutil, one)
     @plansor fixpoints[1][1, 1, 1][-1 -2; -3] = l_LL(st)[-1; -3] * conj(leftutil[-2])
-    (len > 1) && left_cyclethrough!(1, fixpoints, ham, st)
+    (len > 1) && left_cyclethrough!(1, fixpoints, H, st)
 
-    for i in 2:length(left_virtualspace(ham, 1))
+    for i in 2:left_virtualsize(H, 1)
         prev = copy(fixpoints[1][1, i, 1]) # use as initial guess in linsolve
         zerovector!(fixpoints[1][1, i, 1])
 
-        left_cyclethrough!(i, fixpoints, ham, st)
+        left_cyclethrough!(i, fixpoints, H, st)
 
-        if isone(ham, i) # identity matrices; do the hacky renormalization
+        if isone(H, i) # identity matrices; do the hacky renormalization
             tm = regularize(TransferMatrix(st.AL, st.AL), l_LL(st), r_LL(st))
             fixpoints[1][1, i, 1], convhist = linsolve(flip(tm), fixpoints[1][1, i, 1],
                                                        prev, solver, 1, -1)
             convhist.converged == 0 && @info "calclw failed to converge $(convhist.normres)"
 
-            (len > 1) && left_cyclethrough!(i, fixpoints, ham, st)
+            (len > 1) && left_cyclethrough!(i, fixpoints, H, st)
 
             # go through the unitcell, again subtracting fixpoints
             for potato in 1:len
@@ -127,15 +127,15 @@ function calclw!(fixpoints, st::InfiniteMPS, ham::MPOHamiltonian;
             end
 
         else
-            if iszero(ham, i)
-                diag = map(b -> b[1, i, i, 1], ham[:])
+            if iszero(H, i)
+                diag = map(b -> b[i, 1, 1, i], parent(H))
                 tm = TransferMatrix(st.AL, diag, st.AL)
                 fixpoints[1][1, i, 1], convhist = linsolve(flip(tm), fixpoints[1][1, i, 1],
                                                            prev, solver, 1, -1)
                 convhist.converged == 0 &&
                     @info "calclw failed to converge $(convhist.normres)"
             end
-            (len > 1) && left_cyclethrough!(i, fixpoints, ham, st)
+            (len > 1) && left_cyclethrough!(i, fixpoints, H, st)
         end
     end
 
@@ -144,9 +144,9 @@ end
 
 function calcrw!(fixpoints, st::InfiniteMPS, ham::MPOHamiltonian;
                  solver=Defaults.linearsolver)
+    check_length(st, ham)
     len = length(st)
-    @assert len == length(ham)
-    odim = length(right_virtualspace(ham, len))
+    odim = right_virtualsize(ham, len)
 
     # the start element
     rightutil = similar(st.AL[1], right_virtualspace(ham, len)[end])
@@ -178,7 +178,7 @@ function calcrw!(fixpoints, st::InfiniteMPS, ham::MPOHamiltonian;
             end
         else
             if iszero(ham, i)
-                diag = map(b -> b[1, i, i, 1], ham[:])
+                diag = map(b -> b[i, 1, 1, i], parent(ham))
                 tm = TransferMatrix(st.AR, diag, st.AR)
                 fixpoints[end][1, i, 1], convhist = linsolve(tm, fixpoints[end][1, i, 1],
                                                              prev, solver, 1, -1)
