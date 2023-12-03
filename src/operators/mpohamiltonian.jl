@@ -8,7 +8,14 @@
 
 struct MPOHamiltonian{T<:SparseMPOTensor} <: AbstractMPO
     data::PeriodicVector{T}
+
+    # regular constructor
     function MPOHamiltonian{T}(data::PeriodicVector{T}) where {T<:SparseMPOTensor}
+        return new{T}(data)
+    end
+
+    # constructor with guaranteed space checks and structure checks
+    function MPOHamiltonian(data::PeriodicVector{T}) where {T<:SparseMPOTensor}
         for i in eachindex(data)
             Vₗ = left_virtualspace(data[i])
             Vᵣ = dual(right_virtualspace(data[i - 1]))
@@ -16,12 +23,19 @@ struct MPOHamiltonian{T<:SparseMPOTensor} <: AbstractMPO
                 throw(SpaceMismatch("Incompatible virtual spaces at $i:\n$Vₗ ≠ $Vᵣ"))
             space(data[i], 2) == dual(space(data[i], 3)) ||
                 throw(TensorKit.SpaceMismatch("Incompatible physical spaces at $i"))
+            isjordanstructure(data[i]) ||
+                throw(ArgumentError("MPOHamiltonian should be in Jordan form ($i)"))
         end
         return new{T}(data)
     end
 end
 
-MPOHamiltonian(data::AbstractVector{T}) where {T} = MPOHamiltonian{T}(PeriodicArray(data))
+function MPOHamiltonian(data::AbstractVector{<:SparseMPOTensor})
+    return MPOHamiltonian(PeriodicArray(data))
+end
+
+# Properties
+# ----------
 
 function Base.getproperty(H::MPOHamiltonian, sym::Symbol)
     if sym === :A
@@ -35,11 +49,6 @@ function Base.getproperty(H::MPOHamiltonian, sym::Symbol)
     else
         return getfield(H, sym)
     end
-end
-
-physicalspace(H::MPOHamiltonian, i::Int) = physicalspace(H[i])
-function physicalspace(H::Union{MPOHamiltonian,InfiniteMPO})
-    return ProductSpace(ntuple(i -> physicalspace(H[i]), period(H)))
 end
 
 function MPOHamiltonian(t::TensorMap{S,N,N}) where {S,N}
@@ -111,19 +120,8 @@ function MPOHamiltonian(x::Array{T,1}) where {T<:MPOTensor{Sp}} where {Sp}
     return MPOHamiltonian(SparseMPO(nOs))
 end
 
-left_virtualspace(H::MPOHamiltonian, i::Int) = space(H[i], 1)
-right_virtualspace(H::MPOHamiltonian, i::Int) = space(H[i], 4)
-
 left_virtualdim(H::MPOHamiltonian, i::Int) = size(H[i], 1)
 right_virtualdim(H::MPOHamiltonian, i::Int) = size(H[i], 4)
-
-# function Base.getproperty(h::MPOHamiltonian, f::Symbol)
-#     if f in (:odim, :period, :imspaces, :domspaces, :Os, :pspaces)
-#         return getproperty(h.data, f)
-#     else
-#         return getfield(h, f)
-#     end
-# end
 
 Base.getindex(x::MPOHamiltonian, a) = x.data[a];
 
@@ -171,7 +169,7 @@ function sanitycheck(ham::MPOHamiltonian)
     return true
 end
 
-#addition / substraction
+# addition / substraction
 Base.:-(H::MPOHamiltonian) = -one(scalartype(H)) * H
 function Base.:+(H::MPOHamiltonian, λs::AbstractVector{<:Number})
     length(λs) == period(H) ||
@@ -306,7 +304,6 @@ function Base.:*(b::H, a::H) where {H<:MPOHamiltonian}
         @plansor C[i][-1 -2; -3 -4] = Fs[i][-1; 1 2] * a[i][1 5; -3 3] * b[i][2 -2; 5 4] *
                                       conj(Fs[i + 1][-4; 3 4])
         if eltype(H) <: SparseMPOTensor
-            println("hi")
             # restore sparsity -> when both factors are braidingtensors, we know that the
             # result can again be represented as a braidingtensor
             cinds = CartesianIndices((size(a[i], 1), size(b[i], 1)))

@@ -1,6 +1,8 @@
 module MPSKit
 
-using TensorKit, TensorOperations
+using TensorKit
+using TensorKit: BraidingTensor
+using TensorOperations
 using TensorOperations: TupleTools
 using BlockTensorKit
 using KrylovKit, OptimKit, FastClosures
@@ -30,7 +32,7 @@ export entanglementplot, transferplot
 
 # hamiltonian things
 export Cache
-export SparseMPO, MPOHamiltonian, DenseMPO, MPOMultiline
+export SparseMPO, MPOHamiltonian, DenseMPO, MPOMultiline, InfiniteMPO
 export ∂C, ∂AC, ∂AC2, environments, expectation_value, effective_excitation_hamiltonian
 export leftenv, rightenv
 
@@ -77,10 +79,8 @@ include("states/quasiparticle_state.jl")
 include("states/ortho.jl")
 
 include("operators/abstractmpo.jl")
-include("operators/densempo.jl")
-include("operators/sparsempo/sparseslice.jl")
-include("operators/sparsempo/sparsempo.jl")
-include("operators/mpohamiltonian.jl") # the mpohamiltonian objects
+include("operators/infinitempo.jl")
+include("operators/mpohamiltonian.jl")
 include("operators/mpomultiline.jl")
 include("operators/projection.jl")
 
