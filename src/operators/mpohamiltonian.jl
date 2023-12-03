@@ -90,7 +90,7 @@ function MPOHamiltonian(local_mpo::Vector{O}) where {O<:MPOTensor}
         throw(ArgumentError("all physical spaces should be equal"))
     S = spacetype(O)
     V₀ = oneunit(S)
-    P = space(t, 1)
+    P = physicalspace(local_mpo[1])
 
     τ = BraidingTensor{S,storagetype(O)}(P, V₀)
     ttype = Union{O,typeof(τ)}
