@@ -99,7 +99,7 @@ function classical_ising()
     O[2, 2, 2, 2] = 1
 
     @tensor o[-1 -2; -3 -4] := O[1 2; 3 4] * nt[-1; 1] * nt[-2; 2] * nt[-3; 3] * nt[-4; 4]
-    return DenseMPO(TensorMap(o, ℂ^2 * ℂ^2, ℂ^2 * ℂ^2))
+    return InfiniteMPO([TensorMap(o, ℂ^2 * ℂ^2, ℂ^2 * ℂ^2)])
 end
 
 function sixvertex(; a=1.0, b=1.0, c=1.0)
@@ -107,5 +107,5 @@ function sixvertex(; a=1.0, b=1.0, c=1.0)
                    0 c b 0
                    0 b c 0
                    0 0 0 a]
-    return DenseMPO(permute(TensorMap(d, ℂ^2 ⊗ ℂ^2, ℂ^2 ⊗ ℂ^2), ((1, 2), (4, 3))))
+    return InfiniteMPO([permute(TensorMap(d, ℂ^2 ⊗ ℂ^2, ℂ^2 ⊗ ℂ^2), ((1, 2), (4, 3)))])
 end

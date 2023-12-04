@@ -50,8 +50,8 @@ Base.length(O::AbstractMPO) = length(parent(O))
 
 Base.iterate(O::AbstractMPO, args...) = iterate(parent(O), args...)
 
-Base.getindex(O::AbstractMPO, i::Int) = getindex(parent(O), i)
-Base.setindex!(O::AbstractMPO, v, i::Int) = setindex!(parent(O), v, i)
+Base.getindex(O::AbstractMPO, i) = getindex(parent(O), i)
+Base.setindex!(O::AbstractMPO, v, i) = setindex!(parent(O), v, i)
 Base.lastindex(O::AbstractMPO) = lastindex(parent(O))
 Base.checkbounds(::Type{Bool}, O::AbstractMPO, args...) = checkbounds(parent(O), args...)
 

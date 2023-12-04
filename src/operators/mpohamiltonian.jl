@@ -155,16 +155,15 @@ end
 Base.:-(H::MPOHamiltonian) = -one(scalartype(H)) * H
 function Base.:+(H::MPOHamiltonian, λs::AbstractVector{<:Number})
     check_length(H, λs)
-    H′ = copy(H)
-
+    H′ = deepcopy(H)
     foreach(H′.data, λs) do h, λ
         D = h[1, 1, 1, end]
-        return h[1, 1, 1, end] = add!(D, isomorphism(storagetype(D), space(D)), λ)
+        h[1, 1, 1, end] = add(D, BraidingTensor{spacetype(H),storagetype(H)}(domain(D)...), λ)
     end
     return H′
 end
 
-Base.:-(e::AbstractVector, a::MPOHamiltonian) = -1.0 * a + e
+Base.:-(e::AbstractVector, a::MPOHamiltonian) = (-a) + e
 Base.:+(e::AbstractVector, a::MPOHamiltonian) = a + e
 Base.:-(a::MPOHamiltonian, e::AbstractVector) = a + (-e)
 

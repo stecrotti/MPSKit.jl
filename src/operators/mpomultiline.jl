@@ -11,9 +11,9 @@ Type that represents multiple lines of `MPO` objects.
 
 See also: [`Multiline`](@ref), [`SparseMPO`](@ref), [`DenseMPO`](@ref)
 """
-const MPOMultiline = Multiline{<:Union{SparseMPO,DenseMPO}}
+const MPOMultiline = Multiline{<:AbstractMPO}
 
-MPOMultiline(Os::AbstractMatrix{<:MPOTensor}) = MPOMultiline(map(DenseMPO, eachrow(Os)))
+MPOMultiline(Os::AbstractMatrix{<:MPOTensor}) = MPOMultiline(map(InfiniteMPO, eachrow(Os)))
 MPOMultiline(mpos::AbstractVector{<:Union{SparseMPO,DenseMPO}}) = Multiline(mpos)
 MPOMultiline(t::MPOTensor) = MPOMultiline(fill(t, 1, 1))
 
@@ -23,7 +23,7 @@ Base.getindex(t::MPOMultiline, i::Int, j) = Base.getindex(t[i], j)
 Base.getindex(t::MPOMultiline, I::CartesianIndex{2}) = t[I.I...]
 
 # converters
-Base.convert(::Type{MPOMultiline}, t::Union{SparseMPO,DenseMPO}) = Multiline([t])
+Base.convert(::Type{MPOMultiline}, t::AbstractMPO) = Multiline([t])
 Base.convert(::Type{DenseMPO}, t::MPOMultiline) = only(t)
 Base.convert(::Type{SparseMPO}, t::MPOMultiline) = only(t)
 

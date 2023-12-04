@@ -25,7 +25,7 @@ VectorInterface.scalartype(::Type{<:FinEnv{A,B,C,D}}) where {A,B,C,D} = scalarty
 Initialize environments.
 """
 function FinEnv(ψ::AbstractFiniteMPS,
-                O::Union{InfiniteMPO,MPOHamiltonian},
+                O::AbstractMPO,
                 above::Union{Nothing,AbstractFiniteMPS})
     # Initialize left environment tensors
     GL = map(0:length(ψ)) do i
@@ -48,6 +48,28 @@ function FinEnv(ψ::AbstractFiniteMPS,
     right_deps = fill!(similar(ψ.AR), similar(ψ.AR[1]))
 
     return FinEnv(above, O, left_deps, right_deps, GL, GR)
+end
+
+function FinEnv(ψ::AbstractFiniteMPS, O::Vector{Nothing}, above::Union{Nothing,AbstractFiniteMPS})
+    # Initialize left environment tensors
+    GL = map(0:length(ψ)) do i
+        Vbot = left_virtualspace(ψ, i)
+        Vtop = isnothing(above) ? Vbot : left_virtualspace(above, i)
+        return TensorMap(undef, scalartype(ψ), Vbot ← Vtop)
+    end
+    
+    # Initialize right environment tensors
+    GR = map(0:length(ψ)) do i
+        Vbot = right_virtualspace(ψ, i)
+        Vtop = isnothing(above) ? Vbot : right_virtualspace(above, i)
+        return TensorMap(undef, scalartype(ψ), Vtop ← Vbot)
+    end
+    
+    # Initialize dependency vectors
+    left_deps = fill!(similar(ψ.AL), similar(ψ.AL[1]))
+    right_deps = fill!(similar(ψ.AR), similar(ψ.AR[1]))
+    
+    return FinEnv(ψ, O, left_deps, right_deps, GL, GR)
 end
 
 function environments(below, t::Tuple, args...; kwargs...)
@@ -95,7 +117,11 @@ function environments(below::S, above::S) where {S<:Union{FiniteMPS,WindowMPS}}
         (above.right_gs == below.right_gs || throw(ArgumentError("right gs differs")))
 
     opp = fill(nothing, length(below))
-    return environments(below, opp, above, l_LL(above), r_RR(above))
+    envs = FinEnv(below, opp, above)
+    envs.leftenvs[1] = l_LL(above)
+    envs.rightenvs[end] = r_RR(above)
+    
+    return envs
 end
 
 function environments(state::Union{FiniteMPS,WindowMPS}, opp::ProjectionOperator)

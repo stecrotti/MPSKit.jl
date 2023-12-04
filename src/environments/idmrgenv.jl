@@ -5,8 +5,8 @@ They have to be updated manually, without any kind of checks
 
 struct IDMRGEnv{H,V}
     opp::H
-    lw::PeriodicArray{V,2}
-    rw::PeriodicArray{V,2}
+    lw::PeriodicVector{V}
+    rw::PeriodicVector{V}
 end
 
 function IDMRGEnv(state::Union{MPSMultiline,InfiniteMPS}, env)
@@ -14,22 +14,23 @@ function IDMRGEnv(state::Union{MPSMultiline,InfiniteMPS}, env)
     return IDMRGEnv(env.opp, deepcopy(env.lw), deepcopy(env.rw))
 end
 
-leftenv(envs::IDMRGEnv, pos::Int) = envs.lw[:, pos];
-leftenv(envs::IDMRGEnv, row::Int, col::Int) = envs.lw[row, col];
-leftenv(envs::IDMRGEnv, pos::Int, state::InfiniteMPS) = envs.lw[:, pos];
-function setleftenv!(envs::IDMRGEnv, pos, lw)
-    return envs.lw[:, pos] = lw[:]
-end
-function setleftenv!(envs::IDMRGEnv, row, col, val)
-    return envs.lw[row, col] = val
-end
+leftenv(envs::IDMRGEnv, pos::Int) = envs.lw[pos]
+# leftenv(envs::IDMRGEnv, row::Int, col::Int) = envs.lw[row, col];
+leftenv(envs::IDMRGEnv, pos::Int, state::InfiniteMPS) = envs.lw[pos]
 
-rightenv(envs::IDMRGEnv, row::Int, col::Int) = envs.rw[row, col];
-rightenv(envs::IDMRGEnv, pos::Int) = envs.rw[:, pos];
-rightenv(envs::IDMRGEnv, pos::Int, state::InfiniteMPS) = envs.rw[:, pos];
+function setleftenv!(envs::IDMRGEnv, pos, lw)
+    return envs.lw[pos] = lw
+end
+# function setleftenv!(envs::IDMRGEnv, row, col, val)
+#     return envs.lw[row, col] = val
+# end
+
+# rightenv(envs::IDMRGEnv, row::Int, col::Int) = envs.rw[row, col]
+rightenv(envs::IDMRGEnv, pos::Int) = envs.rw[pos]
+rightenv(envs::IDMRGEnv, pos::Int, state::InfiniteMPS) = envs.rw[pos]
 function setrightenv!(envs::IDMRGEnv, pos, rw)
-    return envs.rw[:, pos] = rw[:]
+    return envs.rw[pos] = rw
 end
-function setrightenv!(envs::IDMRGEnv, row, col, val)
-    return envs.rw[row, col] = val
-end
+# function setrightenv!(envs::IDMRGEnv, row, col, val)
+#     return envs.rw[row, col] = val
+# end

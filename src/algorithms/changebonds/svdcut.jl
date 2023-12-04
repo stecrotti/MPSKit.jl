@@ -13,7 +13,6 @@ end
 changebonds(Ψ::AbstractFiniteMPS, alg::SvdCut) = changebonds!(copy(Ψ), alg)
 function changebonds!(Ψ::AbstractFiniteMPS, alg::SvdCut)
     for i in (length(Ψ) - 1):-1:1
-        @show Ψ.CR[i]
         U, S, V, = tsvd(Ψ.CR[i]; trunc=alg.trscheme, alg=TensorKit.SVD())
         AL′ = Ψ.AL[i] * U
         Ψ.AC[i] = (AL′, complex(S))
@@ -24,7 +23,7 @@ function changebonds!(Ψ::AbstractFiniteMPS, alg::SvdCut)
 end
 
 function changebonds(Ψ::DenseMPO, alg::SvdCut)
-    return convert(DenseMPO, changebonds(convert(InfiniteMPS, Ψ), alg))
+    return convert(InfiniteMPO, changebonds(convert(InfiniteMPS, Ψ), alg))
 end
 function changebonds(Ψ::MPOMultiline, alg::SvdCut)
     return convert(MPOMultiline, changebonds(convert(MPSMultiline, Ψ), alg))
