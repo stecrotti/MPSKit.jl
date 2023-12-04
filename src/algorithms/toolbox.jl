@@ -138,9 +138,9 @@ Compute the variance of the energy of the state with respect to the hamiltonian.
 """
 function variance end
 
-function variance(state::InfiniteMPS, ham::MPOHamiltonian, envs=environments(state, ham))
-    rescaled_ham = ham - expectation_value(state, ham, envs)
-    return real(sum(expectation_value(state, rescaled_ham * rescaled_ham)))
+function variance(ψ::InfiniteMPS, H::MPOHamiltonian, envs=environments(ψ, H))
+    rescaled_H = H - expectation_value(ψ, H, envs)
+    return real(sum(expectation_value(ψ, rescaled_H * rescaled_H)))
 end
 
 function variance(state::FiniteMPS, ham::MPOHamiltonian, envs=environments(state, ham))
@@ -353,5 +353,5 @@ function periodic_boundary_conditions(mpo::DenseMPO{O}, len=length(mpo)) where {
     @plansor output[end][-1 -2; -3 -4] := mpo[len][2 -2; 3 4] * f2[-1; 1 2] * τ[-3 1; 4 3] *
                                           conj(utleg[-4])
 
-    return DenseMPO(output)
+    return InfiniteMPO(output)
 end
