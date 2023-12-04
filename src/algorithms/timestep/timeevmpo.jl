@@ -18,7 +18,9 @@ function make_time_mpo(H::MPOHamiltonian, dt::Number, alg::TaylorCluster)
     τ = -1im * dt
     # start with H^N
     H_n = H^N
-    linds = LinearIndices(ntuple(i -> virtualdim(H), N))
+    
+    V = left_virtualsize(H, 1)
+    linds = LinearIndices(ntuple(i -> V, N))
     cinds = CartesianIndices(linds)
 
     # extension step: Algorithm 3
@@ -26,19 +28,19 @@ function make_time_mpo(H::MPOHamiltonian, dt::Number, alg::TaylorCluster)
     # TODO: don't need to fully construct H_next...
     if alg.extension
         H_next = H_n * H
-        linds_next = LinearIndices(ntuple(i -> virtualdim(H), N + 1))
+        linds_next = LinearIndices(ntuple(i -> V, N + 1))
         for (i, slice) in enumerate(H_n.data)
             for a in cinds, b in cinds
                 all(>(1), b.I) || continue
-                all(in((1, virtualdim(H))), a.I) && any(==(virtualdim(H)), a.I) && continue
+                all(in((1, V)), a.I) && any(==(V), a.I) && continue
 
                 n1 = count(==(1), a.I) + 1
-                n3 = count(==(virtualdim(H)), b.I) + 1
+                n3 = count(==(V), b.I) + 1
                 factor = τ * factorial(N) / (factorial(N + 1) * n1 * n3)
 
                 for c in 1:(N + 1), d in 1:(N + 1)
                     aₑ = insert!([a.I...], c, 1)
-                    bₑ = insert!([b.I...], d, virtualdim(H))
+                    bₑ = insert!([b.I...], d, V)
 
                     # TODO: use VectorInterface for memory efficiency
                     slice[linds[a], 1, 1, linds[b]] += factor *
@@ -54,10 +56,10 @@ function make_time_mpo(H::MPOHamiltonian, dt::Number, alg::TaylorCluster)
     mpo = convert(SparseMPO, H_n)
     for slice in mpo.data
         for b in cinds[2:end]
-            all(in((1, virtualdim(H))), b.I) || continue
+            all(in((1, V)), b.I) || continue
 
             b_lin = linds[b]
-            a = count(==(virtualdim(H)), b.I)
+            a = count(==(V), b.I)
             factor = τ^a * factorial(N - a) / factorial(N)
             slice[:, 1, 1, 1] = slice[:, 1, 1, 1] + factor * slice[:, 1, 1, b_lin]
             for I in nonzero_keys(slice)
@@ -70,11 +72,11 @@ function make_time_mpo(H::MPOHamiltonian, dt::Number, alg::TaylorCluster)
     for slice in mpo.data
         for c in cinds
             c_lin = linds[c]
-            s_c = CartesianIndex(sort(c.I; by=(!=(1))))
-            s_r = CartesianIndex(sort(c.I; by=(!=(virtualdim(H)))))
+            s_c = CartesianIndex(sort(collect(c.I); by=(!=(1)))...)
+            s_r = CartesianIndex(sort(collect(c.I); by=(!=(V)))...)
 
             n1 = count(==(1), c.I)
-            n3 = count(==(virtualdim(H)), c.I)
+            n3 = count(==(V), c.I)
 
             if n3 <= n1 && s_c != c
                 slice[linds[s_c], 1, 1, :] += slice[c_lin, 1, 1, :]
@@ -96,8 +98,8 @@ function make_time_mpo(H::MPOHamiltonian, dt::Number, alg::TaylorCluster)
             for a in cinds
                 all(>(1), a.I) || continue
                 a_lin = linds[a]
-                n1 = count(==(virtualdim(H)), a.I)
-                b = CartesianIndex(replace(a.I, virtualdim(H) => 1))
+                n1 = count(==(V), a.I)
+                b = CartesianIndex(replace(a.I, V => 1))
                 b_lin = linds[b]
                 factor = τ^n1 * factorial(N - n1) / factorial(N)
                 slice[:, 1, 1, b_lin] += factor * slice[:, 1, 1, a_lin]
@@ -119,8 +121,8 @@ function make_time_mpo(ham::MPOHamiltonian{T}, dt, alg::WII) where {T}
     WD = ham.D
 
     δ = dt * (-1im)
-    Wnew = map(1:period(ham)) do i
-        for j in 2:(left_virtualdim(ham, i) - 1), k in 2:(right_virtualdim(ham, i) - 1)
+    Wnew = map(1:length(ham)) do i
+        for j in 2:(left_virtualsize(ham, i) - 1), k in 2:(right_virtualsize(ham, i) - 1)
             init_1 = isometry(storagetype(WD[i]), codomain(WD[i]), domain(WD[i]))
             init = [init_1,
                     zero(ham[i][1, 1, 1, k]),
