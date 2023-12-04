@@ -10,41 +10,39 @@ using BlockTensorKit
 
 # using TensorOperations
 
-# force_planar(V::Union{CartesianSpace,ComplexSpace}) = ℙ^dim(V)
-# force_planar(V::ProductSpace) = mapreduce(force_planar, ⊗, V.spaces)
-# force_planar(V::SumSpace) = SumSpace(map(force_planar, V.spaces))
-# function force_planar(x::TensorMap)
-#     cod = force_planar(codomain(x))
-#     dom = force_planar(domain(x))
-#     t = TensorMap(undef, scalartype(x), cod ← dom)
-#     copyto!(blocks(t)[PlanarTrivial()], convert(Array, x))
-#     return t
-# end
-# function force_planar(x::BlockTensorMap{S,N1,N2}) where {S,N1,N2}
-#     cod = force_planar(codomain(x))
-#     dom = force_planar(domain(x))
-#     if x isa SparseBlockTensorMap
-#         T = tensormaptype(eltype(spacetype(cod)), N1,N2, scalartype(x))
-#         t = BlockTensorMap(undef_blocks, BlockTensorKit.SparseArray{T,N1+N2}, cod, dom)
-#         for (I, V) in SparseArrayKit.nonzero_pairs(parent(x))
-#             parent(t)[I] = force_planar(V)
-#         end
-#     else
-#         t = BlockTensorMap(undef, scalartype(x), cod ← dom)
-#         map!(force_planar, parent(t), parent(x))
-#     end
-#     return t
-# end
-# function force_planar(x::SparseMPOTensor)
-#     return SparseMPOTensor(force_planar(x.tensors), x.scalars)
-# end
-# function force_planar(x::MPSKit.SparseMPO)
-#     return SparseMPO(force_planar.(x.data))
-# end
-# function force_planar(x::MPSKit.MPOHamiltonian)
-#     return MPOHamiltonian(force_planar(x.data))
-# end
-# force_planar(mpo::DenseMPO) = DenseMPO(force_planar.(mpo.data))
+force_planar(V::Union{CartesianSpace,ComplexSpace}) = ℙ^dim(V)
+force_planar(V::ProductSpace) = mapreduce(force_planar, ⊗, V.spaces)
+force_planar(V::SumSpace) = SumSpace(map(force_planar, V.spaces))
+function force_planar(x::TensorMap)
+    cod = force_planar(codomain(x))
+    dom = force_planar(domain(x))
+    t = TensorMap(undef, scalartype(x), cod ← dom)
+    copyto!(blocks(t)[PlanarTrivial()], convert(Array, x))
+    return t
+end
+function force_planar(x::TensorKit.BraidingTensor)
+    V1 = force_planar(x.V1)
+    V2 = force_planar(x.V2)
+    return TensorKit.BraidingTensor{typeof(V1),storagetype(x)}(V1, V2, x.adjoint)
+end
+function force_planar(x::BlockTensorMap{S,N₁,N₂}) where {S,N₁,N₂}
+    planar_tensors = Dict(I => force_planar(V) for (I, V) in nonzero_pairs(x))
+    ttypes = Union{unique(typeof(t) for t in values(planar_tensors))...}
+    cod = force_planar(codomain(x))
+    dom = force_planar(domain(x))
+    tdst = BlockTensorMap{spacetype(ttypes),N₁,N₂,ttypes}(undef, cod, dom)
+    for (I, v) in planar_tensors
+        tdst[I] = v
+    end
+    @assert norm(x) ≈ norm(tdst)
+    return tdst
+end
+function force_planar(x::InfiniteMPO)
+    return InfiniteMPO(force_planar.(parent(x)))
+end
+function force_planar(x::MPOHamiltonian)
+    return MPOHamiltonian(force_planar.(parent(x)))
+end
 force_planar(x) = x
 
 # Toy models
