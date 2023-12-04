@@ -31,18 +31,6 @@ function gen_lw_rw(st::InfiniteMPS, ham::Union{SparseMPO,MPOHamiltonian})
                                                  V_mps ⊗ V_mpo' ← V_mps)
                        end)
 
-    # lw = PeriodicArray{A,2}(undef, ham.odim, length(st))
-    # rw = PeriodicArray{A,2}(undef, ham.odim, length(st))
-
-    # for i in 1:length(st), j in 1:(ham.odim)
-    #     lw[j, i] = similar(
-    #         st.AL[1], _firstspace(st.AL[i]) * ham[i].domspaces[j]' ← _firstspace(st.AL[i])
-    #     )
-    #     rw[j, i] = similar(
-    #         st.AL[1], _lastspace(st.AR[i])' * ham[i].imspaces[j]' ← _lastspace(st.AR[i])'
-    #     )
-    # end
-
     randomize!.(lw)
     randomize!.(rw)
 
@@ -96,18 +84,21 @@ end
 
 function calclw!(fixpoints, st::InfiniteMPS, H::MPOHamiltonian;
                  solver=Defaults.linearsolver)
+    check_length(st, H)
     len = length(st)
-    @assert len == length(H)
 
     # the start element
     leftutil = similar(st.AL[1], left_virtualspace(H, 1)[1])
     fill_data!(leftutil, one)
-    @plansor fixpoints[1][1, 1, 1][-1 -2; -3] = l_LL(st)[-1; -3] * conj(leftutil[-2])
+
+    ρₗ = get!(fixpoints[1], CartesianIndex(1, 1, 1))
+    @plansor ρₗ[-1 -2; -3] = l_LL(st)[-1; -3] * conj(leftutil[-2])
+
     (len > 1) && left_cyclethrough!(1, fixpoints, H, st)
 
     for i in 2:left_virtualsize(H, 1)
         prev = copy(fixpoints[1][1, i, 1]) # use as initial guess in linsolve
-        zerovector!(fixpoints[1][1, i, 1])
+        fixpoints[1][1, i, 1] = zerovector!(fixpoints[1][1, i, 1])
 
         left_cyclethrough!(i, fixpoints, H, st)
 
@@ -120,10 +111,12 @@ function calclw!(fixpoints, st::InfiniteMPS, H::MPOHamiltonian;
             (len > 1) && left_cyclethrough!(i, fixpoints, H, st)
 
             # go through the unitcell, again subtracting fixpoints
-            for potato in 1:len
-                @plansor fixpoints[potato][i][-1 -2; -3] -= fixpoints[potato][i][1 -2; 2] *
-                                                            r_LL(st, potato - 1)[2; 1] *
-                                                            l_LL(st, potato)[-1; -3]
+            for 🥔 in 1:len
+                fixpoints[🥔][i] = @plansor fixpoints[🥔][i][-1 -2; -3] -= fixpoints[🥔][i][1 -2;
+                                                                                         2] *
+                                                                         r_LL(st, 🥔 - 1)[2;
+                                                                                         1] *
+                                                                         l_LL(st, 🥔)[-1; -3]
             end
 
         else
@@ -151,13 +144,14 @@ function calcrw!(fixpoints, st::InfiniteMPS, ham::MPOHamiltonian;
     # the start element
     rightutil = similar(st.AL[1], right_virtualspace(ham, len)[end])
     fill_data!(rightutil, one)
-    @plansor fixpoints[end][1, end, 1][-1 -2; -3] = r_RR(st)[-1; -3] * conj(rightutil[-2])
+    ρᵣ = get!(fixpoints[end], CartesianIndex(1, odim, 1))
+    @plansor ρᵣ[-1 -2; -3] = r_RR(st)[-1; -3] * conj(rightutil[-2])
 
     (len > 1) && right_cyclethrough!(odim, fixpoints, ham, st) #populate other sites
 
     for i in (odim - 1):-1:1
         prev = copy(fixpoints[end][1, i, 1]) # use as initial guess in linsolve
-        zerovector!(fixpoints[end][1, i, 1])
+        fixpoints[end][1, i, 1] = zerovector!(fixpoints[end][1, i, 1])
 
         right_cyclethrough!(i, fixpoints, ham, st)
 
@@ -170,11 +164,12 @@ function calcrw!(fixpoints, st::InfiniteMPS, ham::MPOHamiltonian;
             len > 1 && right_cyclethrough!(i, fixpoints, ham, st)
 
             #go through the unitcell, again subtracting fixpoints
-            for potatoe in 1:len
-                @plansor fixpoints[potatoe][i][-1 -2; -3] -= fixpoints[potatoe][i][1 -2;
-                                                                                   2] *
-                                                             l_RR(st, potatoe + 1)[2; 1] *
-                                                             r_RR(st, potatoe)[-1; -3]
+            for 🥔 in 1:len
+                fixpoints[🥔][i] = @plansor fixpoints[🥔][i][-1 -2; -3] -= fixpoints[🥔][i][1 -2;
+                                                                                         2] *
+                                                                         l_RR(st, 🥔 + 1)[2;
+                                                                                         1] *
+                                                                         r_RR(st, 🥔)[-1; -3]
             end
         else
             if iszero(ham, i)

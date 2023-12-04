@@ -95,7 +95,7 @@ end
 
 @testset "WindowMPS" begin
     ham = force_planar(transverse_field_ising(; g=8.0))
-    (gs, _, _) = find_groundstate(InfiniteMPS([ℂ^2], [ℂ^10]), ham, VUMPS(; verbose=false))
+    gs, _, _ = find_groundstate(InfiniteMPS([ℙ^2], [ℙ^10]), ham, VUMPS(; verbose=false))
 
     #constructor 1 - give it a plain array of tensors
     window_1 = WindowMPS(gs, copy.([gs.AC[1]; [gs.AR[i] for i in 2:10]]), gs)
@@ -108,7 +108,7 @@ end
     @test ovl ≈ 1 atol = 1e-8
 
     #constructor 3 - random initial tensors
-    window = WindowMPS(rand, ComplexF64, 10, ℂ^2, ℂ^10, gs, gs)
+    window = WindowMPS(rand, ComplexF64, 10, ℙ^2, ℙ^10, gs, gs)
     normalize!(window)
 
     for i in 1:length(window)
@@ -134,8 +134,8 @@ end
 
     @test v2 < v1
     @test real(e2[2]) ≤ real(e1[2])
-    (window, envs) = timestep(window, ham, 0.1, TDVP2(), envs)
-    (window, envs) = timestep(window, ham, 0.1, TDVP(), envs)
+    window, envs = timestep(window, ham, 0.1, TDVP2(), envs)
+    window, envs = timestep(window, ham, 0.1, TDVP(), envs)
 
     e3 = expectation_value(window, ham)
 
@@ -145,7 +145,7 @@ end
 
 @testset "Finite Quasiparticle state" verbose = true for (th, D, d) in
                                                          [(force_planar(transverse_field_ising()),
-                                                           ℂ^10, ℂ^2),
+                                                           ℙ^10, ℙ^2),
                                                           (heisenberg_XXX(SU2Irrep; spin=1),
                                                            Rep[SU₂](1 => 1, 0 => 3),
                                                            Rep[SU₂](1 => 1))]
@@ -176,7 +176,7 @@ end
 
 @testset "Infinite Quasiparticle state" verbose = true for (th, D, d) in
                                                            [(force_planar(transverse_field_ising()),
-                                                             ℂ^10, ℂ^2),
+                                                             ℙ^10, ℙ^2),
                                                             (heisenberg_XXX(SU2Irrep;
                                                                             spin=1),
                                                              Rep[SU₂](1 => 1, 0 => 3),
