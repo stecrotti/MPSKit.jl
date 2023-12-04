@@ -1,12 +1,12 @@
 function left_excitation_transfer_system(lBs, ham, exci; mom=exci.momentum,
                                          solver=Defaults.linearsolver)
-    len = ham.period
-    found = zero.(lBs)
-    odim = length(lBs)
+    len = length(ham)
+    found = zerovector.(lBs)
+    odim = left_virtualsize(ham, 1)
 
     for i in 1:odim
-        #this operation can be sped up by at least a factor 2;  found mostly consists of zeros
-        start = found * TransferMatrix(exci.right_gs.AR, ham[:], exci.left_gs.AL) /
+        #this operation can be sped up by at least a factor 2; found mostly consists of zeros
+        start = found * TransferMatrix(exci.right_gs.AR, parent(ham), exci.left_gs.AL) /
                 exp(1im * mom * len)
         if exci.trivial && isid(ham, i)
             @plansor start[i][-1 -2; -3 -4] -= start[i][1 4; -3 2] *
@@ -40,12 +40,12 @@ end
 
 function right_excitation_transfer_system(rBs, ham, exci; mom=exci.momentum,
                                           solver=Defaults.linearsolver)
-    len = ham.period
+    len = length(ham)
     found = zero.(rBs)
-    odim = length(rBs)
+    odim = right_virtualsize(rBs, 0)
 
     for i in odim:-1:1
-        start = TransferMatrix(exci.left_gs.AL, ham[:], exci.right_gs.AR) *
+        start = TransferMatrix(exci.left_gs.AL, parent(ham), exci.right_gs.AR) *
                 found *
                 exp(1im * mom * len)
 

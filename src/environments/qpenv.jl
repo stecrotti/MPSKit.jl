@@ -78,7 +78,7 @@ end
 
 function environments(exci::InfiniteQP, ham::MPOHamiltonian, lenvs, renvs;
                       solver=Defaults.linearsolver)
-    ids = collect(Iterators.filter(x -> isone(ham, x), 2:(virtualdim(ham) - 1)))
+    ids = collect(Iterators.filter(x -> isone(ham, x), 2:(left_virtualsize(ham, 1) - 1)))
 
     AL = exci.left_gs.AL
     AR = exci.right_gs.AR
@@ -95,41 +95,23 @@ function environments(exci::InfiniteQP, ham::MPOHamiltonian, lenvs, renvs;
 
         if exci.trivial
             @plansor lBs[pos + 1][-1 -2; -3 -4] -= lBs[pos + 1][1 4; -3 2] *
-                                                   convert(BlockTensorMap,
-                                                           r_RL(exci.left_gs, pos))[2; 3] *
+                                                   r_RL(exci.left_gs, pos)[2; 3] *
                                                    τ[3 4; 5 1] *
-                                                   convert(BlockTensorMap,
-                                                           l_RL(exci.left_gs, pos + 1))[-1;
-                                                                                        6] *
+                                                   l_RL(exci.left_gs, pos + 1)[-1; 6] *
                                                    τ[5 6; -4 -2]
         end
-        # lBs[:, pos + 1] =
-        #     lBs[:, pos] * TransferMatrix(AR[pos], ham[pos], AL[pos]) /
-        #     exp(1im * exci.momentum)
-        # lBs[:, pos + 1] +=
-        #     leftenv(lenvs, pos, exci.left_gs) *
-        #     TransferMatrix(exci[pos], ham[pos], AL[pos]) / exp(1im * exci.momentum)
-
-        # exci.trivial && for i in ids
-        #     @plansor lBs[i, pos + 1][-1 -2; -3 -4] -=
-        #         lBs[i, pos + 1][1 4; -3 2] *
-        #         r_RL(exci.left_gs, pos)[2; 3] *
-        #         τ[3 4; 5 1] *
-        #         l_RL(exci.left_gs, pos + 1)[-1; 6] *
-        #         τ[5 6; -4 -2]
-        # end
     end
 
     for pos in length(exci):-1:1
-        rBs[:, pos - 1] = TransferMatrix(AL[pos], ham[pos], AR[pos]) *
-                          rBs[:, pos] *
+        rBs[pos - 1] = TransferMatrix(AL[pos], ham[pos], AR[pos]) *
+                          rBs[pos] *
                           exp(1im * exci.momentum)
-        rBs[:, pos - 1] += TransferMatrix(exci[pos], ham[pos], AR[pos]) *
+        rBs[pos - 1] += TransferMatrix(exci[pos], ham[pos], AR[pos]) *
                            rightenv(renvs, pos, exci.right_gs) *
                            exp(1im * exci.momentum)
 
         exci.trivial && for i in ids
-                        @plansor rBs[i, pos - 1][-1 -2; -3 -4] -= τ[6 4; 1 3] *
+                        @plansor rBs[pos - 1][-1 -2; -3 -4] -= τ[6 4; 1 3] *
                                                                   rBs[i, pos - 1][1 3; -3 2] *
                                                                   l_LR(exci.left_gs, pos)[2; 4] *
                                                                   r_LR(exci.left_gs, pos - 1)[-1;
@@ -218,7 +200,7 @@ function environments(exci::Multiline{<:InfiniteQP},
 
     exci_space = space(exci[1][1], 3)
 
-    (numrows, numcols) = size(left_gs)
+    numrows, numcols = size(left_gs)
 
     st = site_type(typeof(left_gs))
     B_type = tensormaptype(spacetype(st), 2, 2, storagetype(st))
