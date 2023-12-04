@@ -93,6 +93,9 @@ end
 function ∂AC(x::RecursiveVec, O, GL, GR)
     return RecursiveVec(circshift(map(∂AC, x.vecs, O, GL, GR), 1))
 end
+function ∂AC(x::MPSTensor, ::Nothing, GL, GR)
+    return _transpose_front(GL * _transpose_tail(x * GR))
+end
 
 """
     ∂AC2(x::AbstractMPSTensor, O₁::AbstractMPOTensor, O₂::AbstractMPOTensor,
@@ -108,6 +111,9 @@ function ∂AC2(x::AbstractMPOTensor, O₁::AbstractMPOTensor, O₂::AbstractMPO
 end
 function ∂AC2(x::RecursiveVec, O₁, O₂, GL, GR)
     return RecursiveVec(circshift(map(∂AC2, x.vecs, O₁, O₂, GL, GR)), 1)
+end
+function ∂AC2(x::MPOTensor, ::Nothing, ::Nothing, GL, GR)
+    @plansor y[-1 -2; -3 -4] := x[1 -2; 2 -4] * GL[-1; 1] * GR[2; -3]
 end
 
 #downproject for approximate
