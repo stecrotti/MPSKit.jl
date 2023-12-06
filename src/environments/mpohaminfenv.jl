@@ -99,28 +99,23 @@ function calclw!(fixpoints, st::InfiniteMPS, H::MPOHamiltonian;
     for i in 2:left_virtualsize(H, 1)
         prev = copy(fixpoints[1][1, i, 1]) # use as initial guess in linsolve
         fixpoints[1][1, i, 1] = zerovector!(fixpoints[1][1, i, 1])
-
         left_cyclethrough!(i, fixpoints, H, st)
-
         if isone(H, i) # identity matrices; do the hacky renormalization
             tm = regularize(TransferMatrix(st.AL, st.AL), l_LL(st), r_LL(st))
             fixpoints[1][1, i, 1], convhist = linsolve(flip(tm), fixpoints[1][1, i, 1],
-                                                       prev, solver, 1, -1)
-            convhist.converged == 0 && @info "calclw failed to converge $(convhist.normres)"
+                                        prev, solver, 1, -1) 
+            convhist.converged == 0 && @info "calclw failed to converge" convhist
 
             (len > 1) && left_cyclethrough!(i, fixpoints, H, st)
-
+            
             # go through the unitcell, again subtracting fixpoints
             for 🥔 in 1:len
-                fixpoints[🥔][i] = @plansor fixpoints[🥔][i][-1 -2; -3] -= fixpoints[🥔][i][1 -2;
-                                                                                         2] *
-                                                                         r_LL(st, 🥔 - 1)[2;
-                                                                                         1] *
-                                                                         l_LL(st, 🥔)[-1; -3]
+                fp = get!(fixpoints[🥔], CartesianIndex(1, i, 1))
+                @plansor fp[-1 -2; -3] -= fp[1 -2; 2] * r_LL(st, 🥔 - 1)[2; 1] *
+                                          l_LL(st, 🥔)[-1; -3]
             end
-
         else
-            if iszero(H, i)
+            if !iszero(H, i)
                 diag = map(b -> b[i, 1, 1, i], parent(H))
                 tm = TransferMatrix(st.AL, diag, st.AL)
                 fixpoints[1][1, i, 1], convhist = linsolve(flip(tm), fixpoints[1][1, i, 1],
@@ -131,7 +126,6 @@ function calclw!(fixpoints, st::InfiniteMPS, H::MPOHamiltonian;
             (len > 1) && left_cyclethrough!(i, fixpoints, H, st)
         end
     end
-
     return fixpoints
 end
 
@@ -160,19 +154,16 @@ function calcrw!(fixpoints, st::InfiniteMPS, ham::MPOHamiltonian;
             fixpoints[end][1, i, 1], convhist = linsolve(tm, fixpoints[end][1, i, 1], prev,
                                                          solver, 1, -1)
             convhist.converged == 0 && @info "calcrw failed to converge $(convhist.normres)"
-
             len > 1 && right_cyclethrough!(i, fixpoints, ham, st)
 
             #go through the unitcell, again subtracting fixpoints
             for 🥔 in 1:len
-                fixpoints[🥔][i] = @plansor fixpoints[🥔][i][-1 -2; -3] -= fixpoints[🥔][i][1 -2;
-                                                                                         2] *
-                                                                         l_RR(st, 🥔 + 1)[2;
-                                                                                         1] *
-                                                                         r_RR(st, 🥔)[-1; -3]
+                fp = get!(fixpoints[🥔], CartesianIndex(1, i, 1))
+                @plansor fp[-1 -2; -3] -= fp[1 -2; 2] * l_RR(st, 🥔 + 1)[2; 1] *
+                                          r_RR(st, 🥔)[-1; -3]
             end
         else
-            if iszero(ham, i)
+            if !iszero(ham, i)
                 diag = map(b -> b[i, 1, 1, i], parent(ham))
                 tm = TransferMatrix(st.AR, diag, st.AR)
                 fixpoints[end][1, i, 1], convhist = linsolve(tm, fixpoints[end][1, i, 1],
@@ -184,71 +175,27 @@ function calcrw!(fixpoints, st::InfiniteMPS, ham::MPOHamiltonian;
             (len > 1) && right_cyclethrough!(i, fixpoints, ham, st)
         end
     end
-
     return fixpoints
 end
 """
-    left_cyclethrough!(index::Int, fp, ham, st)
+    left_cyclethrough!(index::Int, fp, H, st)
 
 This function computes all fixpoints at layer index, using the fixpoints at previous layers.
 """
-function left_cyclethrough!(index::Int, fp::PeriodicArray{T,1}, ham, st) where {T}
+function left_cyclethrough!(index::Int, fp::PeriodicArray{T,1}, H, st) where {T}
     for i in 1:length(fp)
-        zerovector!(fp[i + 1][index])
-
-        transfer = TransferMatrix(st.AL[i], ham[i][1:index, 1, 1, index], st.AL[i])
+        fp[i + 1][1, index, 1] = zerovector!(fp[i + 1][1, index, 1])
+        transfer = TransferMatrix(st.AL[i], H[i][1:index, 1, 1, index], st.AL[i])
         fp[i + 1][1, index, 1] = fp[i][1, 1:index, 1] * transfer
-        # mul!(fp[i + 1][index], fp[i][1, 1:index, 1], transfer)
-
-        # rmul!(fp[index, i + 1], 0)
-
-        # for j in index:-1:1
-        #     contains(ham[i], j, index) || continue
-
-        #     if isscal(ham[i], j, index)
-        #         axpy!(
-        #             ham.Os[i, j, index],
-        #             fp[j, i] * TransferMatrix(st.AL[i], st.AL[i]),
-        #             fp[index, i + 1],
-        #         )
-        #     else
-        #         axpy!(
-        #             true,
-        #             fp[j, i] * TransferMatrix(st.AL[i], ham[i][j, index], st.AL[i]),
-        #             fp[index, i + 1],
-        #         )
-        #     end
-        # end
     end
     return nothing
 end
 
-function right_cyclethrough!(index::Int, fp::PeriodicArray{T,1}, ham, st) where {T}
+function right_cyclethrough!(index::Int, fp::PeriodicArray{T,1}, H, st) where {T}
     for i in reverse(1:length(fp))
-        zerovector!(fp[i - 1][index])
-
-        transfer = TransferMatrix(st.AR[i], ham[i][index, 1, 1, index:end], st.AR[i])
-        fp[i - 1][index] = transfer * fp[i][1, index:end, 1]
-
-        # rmul!(fp[index, i - 1], 0)
-
-        # for j in index:size(fp, 1)
-        #     contains(ham[i], index, j) || continue
-
-        #     if isscal(ham[i], index, j)
-        #         axpy!(
-        #             ham.Os[i, index, j],
-        #             TransferMatrix(st.AR[i], st.AR[i]) * fp[j, i],
-        #             fp[index, i - 1],
-        #         )
-        #     else
-        #         axpy!(
-        #             true,
-        #             TransferMatrix(st.AR[i], ham[i][index, j], st.AR[i]) * fp[j, i],
-        #             fp[index, i - 1],
-        #         )
-        #     end
-        # end
+        fp[i - 1][1, index, 1] = zerovector!(fp[i - 1][index])
+        transfer = TransferMatrix(st.AR[i], H[i][index, 1, 1, index:end], st.AR[i])
+        fp[i - 1][1, index, 1] = transfer * fp[i][1, index:end, 1]
     end
     return nothing
 end
