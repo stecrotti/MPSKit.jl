@@ -7,6 +7,7 @@ module Defaults
 
 using Preferences
 import KrylovKit: GMRES, Arnoldi
+import TensorOperations: Backend
 
 const eltype = ComplexF64
 const maxiter = 100
@@ -50,4 +51,22 @@ const parallelize_derivatives = @load_preference("parallelize_derivatives",
 const parallelize_transfers = @load_preference("parallelize_transfers",
                                                Threads.nthreads() > 1)
 
+function get_backend()
+    b = @load_preference("backend")
+    return isnothing(b) ? b : Backend{Symbol(b)}()
 end
+
+function set_backend!(backend::Symbol)
+    @set_preferences!("backend" => string(backend))
+    @info "Backend changed to $backend"
+    return nothing
+end
+function set_backend!(::Nothing)
+    @delete_preferences!("backend")
+    @info "Backend changed to nothing"
+    return nothing
+end
+
+# const backend::Union{Nothing,Backend} = get_backend()
+
+end # module Defaults

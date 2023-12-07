@@ -15,13 +15,27 @@ apply a transfer matrix to the left.
  └─Ā─
 ```
 """
+function transfer_left(v::AbstractTensorMap{S,1,N₁}, A::GenericMPSTensor{S,N₂},
+                       Ā::GenericMPSTensor{S,N₂}) where {S,N₁,N₂}
+    return transfer_left(v, A, Ā, Defaults.get_backend())
+end
 @generated function transfer_left(v::AbstractTensorMap{S,1,N₁}, A::GenericMPSTensor{S,N₂},
-                                  Ā::GenericMPSTensor{S,N₂}) where {S,N₁,N₂}
+                                  Ā::GenericMPSTensor{S,N₂},
+                                  backend::Nothing) where {S,N₁,N₂}
     t_out = tensorexpr(:v, -1, -(2:(N₁ + 1)))
     t_top = tensorexpr(:A, 2:(N₂ + 1), -(N₁ + 1))
     t_bot = tensorexpr(:Ā, (1, (3:(N₂ + 1))...), -1)
     t_in = tensorexpr(:v, 1, (-(2:N₁)..., 2))
     return :(return @plansor $t_out := $t_in * $t_top * conj($t_bot))
+end
+@generated function transfer_left(v::AbstractTensorMap{S,1,N₁}, A::GenericMPSTensor{S,N₂},
+                                  Ā::GenericMPSTensor{S,N₂},
+                                  backend::TensorOperations.Backend{T}) where {S,N₁,N₂,T}
+    t_out = tensorexpr(:v, -1, -(2:(N₁ + 1)))
+    t_top = tensorexpr(:A, 2:(N₂ + 1), -(N₁ + 1))
+    t_bot = tensorexpr(:Ā, (1, (3:(N₂ + 1))...), -1)
+    t_in = tensorexpr(:v, 1, (-(2:N₁)..., 2))
+    return :(return @plansor backend = $T $t_out := $t_in * $t_top * conj($t_bot))
 end
 
 """
@@ -35,13 +49,26 @@ apply a transfer matrix to the right.
 ─Ā─┘
 ```
 """
+function transfer_right(v::AbstractTensorMap{S,1,N₁}, A::GenericMPSTensor{S,N₂},
+                        Ā::GenericMPSTensor{S,N₂}) where {S,N₁,N₂}
+    return transfer_right(v, A, Ā, Defaults.get_backend())
+end
 @generated function transfer_right(v::AbstractTensorMap{S,1,N₁}, A::GenericMPSTensor{S,N₂},
-                                   Ā::GenericMPSTensor{S,N₂}) where {S,N₁,N₂}
+                                   Ā::GenericMPSTensor{S,N₂}, ::Nothing) where {S,N₁,N₂}
     t_out = tensorexpr(:v, -1, -(2:(N₁ + 1)))
     t_top = tensorexpr(:A, (-1, reverse(3:(N₂ + 1))...), 1)
     t_bot = tensorexpr(:Ā, (-(N₁ + 1), reverse(3:(N₂ + 1))...), 2)
     t_in = tensorexpr(:v, 1, (-(2:N₁)..., 2))
     return :(return @plansor $t_out := $t_top * conj($t_bot) * $t_in)
+end
+@generated function transfer_right(v::AbstractTensorMap{S,1,N₁}, A::GenericMPSTensor{S,N₂},
+                                   Ā::GenericMPSTensor{S,N₂},
+                                   backend::TensorOperations.Backend{T}) where {S,N₁,N₂,T}
+    t_out = tensorexpr(:v, -1, -(2:(N₁ + 1)))
+    t_top = tensorexpr(:A, (-1, reverse(3:(N₂ + 1))...), 1)
+    t_bot = tensorexpr(:Ā, (-(N₁ + 1), reverse(3:(N₂ + 1))...), 2)
+    t_in = tensorexpr(:v, 1, (-(2:N₁)..., 2))
+    return :(return @plansor backend = $T $t_out := $t_top * conj($t_bot) * $t_in)
 end
 
 #transfer, but the upper A is an excited tensor

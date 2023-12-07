@@ -73,11 +73,18 @@ end
 Compute the action of the zero-site derivative on a vector `x`.
 """
 function ∂C(x::MPSBondTensor, GL::AbstractMPSTensor, GR::AbstractMPSTensor)
+    return ∂C(x, GL, GR, Defaults.get_backend())
+end
+function ∂C(x::MPSBondTensor, GL::AbstractMPSTensor, GR::AbstractMPSTensor, ::Nothing)
     @plansor y[-1; -2] := GL[-1 3; 1] * x[1; 2] * GR[2 3; -2]
     return convert(typeof(x), y)
 end
-function ∂C(x::RecursiveVec, GL, GR)
-    return RecursiveVec(circshift(map(∂C, x.vecs, GL, GR), 1))
+@generated function ∂C(x::MPSBondTensor, GL::AbstractMPSTensor, GR::AbstractMPSTensor,
+                       ::TensorOperations.Backend{T}) where {T}
+    return quote
+        @plansor backend = $T y[-1; -2] := GL[-1 3; 1] * x[1; 2] * GR[2 3; -2]
+        return convert(typeof(x), y)
+    end
 end
 
 """
@@ -86,9 +93,21 @@ end
 Compute the action of the one-site derivative on a vector `x`.
 """
 function ∂AC(x::AbstractMPSTensor, O::AbstractMPOTensor,
-             GL::AbstractMPSTensor, GR::AbstractMPSTensor)
+              GL::AbstractMPSTensor, GR::AbstractMPSTensor)
+    return ∂AC(x, O, GL, GR, Defaults.get_backend())
+end
+function ∂AC(x::AbstractMPSTensor, O::AbstractMPOTensor,
+             GL::AbstractMPSTensor, GR::AbstractMPSTensor, ::Nothing)
     @plansor y[-1 -2; -3] := GL[-1 2; 1] * x[1 3; 4] * O[2 -2; 3 5] * GR[4 5; -3]
     return convert(typeof(x), y)
+end
+@generated function ∂AC(x::AbstractMPSTensor, O::AbstractMPOTensor,
+                        GL::AbstractMPSTensor, GR::AbstractMPSTensor,
+                        ::TensorOperations.Backend{T}) where {T}
+    return quote
+        @plansor backend = $T y[-1 -2; -3] := GL[-1 2; 1] * x[1 3; 4] * O[2 -2; 3 5] * GR[4 5; -3]
+        return convert(typeof(x), y)
+    end
 end
 function ∂AC(x::RecursiveVec, O, GL, GR)
     return RecursiveVec(circshift(map(∂AC, x.vecs, O, GL, GR), 1))
