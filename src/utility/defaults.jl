@@ -55,18 +55,28 @@ function get_backend()
     b = @load_preference("backend")
     return isnothing(b) ? b : Backend{Symbol(b)}()
 end
-
-function set_backend!(backend::Symbol)
-    @set_preferences!("backend" => string(backend))
+function set_backend!(backend)
+    if isnothing(backend)
+        @delete_preferences!("backend")
+    else
+        @set_preferences!("backend" => string(backend))
+    end
     @info "Backend changed to $backend"
     return nothing
 end
-function set_backend!(::Nothing)
-    @delete_preferences!("backend")
-    @info "Backend changed to nothing"
+
+function get_allocator()
+    a = @load_preference("allocator")
+    return isnothing(a) ? a : Backend{Symbol(a)}()
+end
+function set_allocator!(allocator)
+    if isnothing(allocator)
+        @delete_preferences!("allocator")
+    else
+        @set_preferences!("allocator" => string(allocator))
+    end
+    @info "Allocator changed to $allocator"
     return nothing
 end
-
-# const backend::Union{Nothing,Backend} = get_backend()
 
 end # module Defaults
