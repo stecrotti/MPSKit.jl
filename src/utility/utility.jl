@@ -134,7 +134,7 @@ function fill_data!(a::TensorMap, dfun)
 
     return a
 end
-randomize!(a::TensorMap) = fill_data!(a, randn)
+randomize!(a::TensorMap) = fill_data!(a, rand)
 
 function safe_xlogx(t::AbstractTensorMap, eps=eps(real(scalartype(t))))
     (U, S, V) = tsvd(t; alg=SVD(), trunc=truncbelow(eps))
